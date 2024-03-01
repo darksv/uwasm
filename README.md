@@ -1,5 +1,10 @@
 # uWasm
-This project is a runtime for [WebAssembly](https://webassembly.github.io/spec/core/index.html) modules, suitable for use as a loader for user apps in firmwares running on microcontrollers like ESP32.
+This project is a runtime for [WebAssembly](https://webassembly.github.io/spec/core/index.html) modules, suitable for use as a loader for user apps in firmwares running on microcontrollers like ESP32. 
+
+## Motivation
+It is being developed within [this daily coding challenge](https://100commitow.pl/). For me, this project serves as an opportunity to learn more about WebAssembly, delve deeper into low level programming, and... use more Rust :)
+
+Hopefully, something useful will come out of this project.
 
 ## Project scope
 - [ ] parser of WebAssembly binary representation;
@@ -12,8 +17,12 @@ This project is a runtime for [WebAssembly](https://webassembly.github.io/spec/c
 - low memory footprint;
 - reasonable performance.
 
+## Additional ideas
+- introduce continuous integration (via Github Actions) on real hardware to ensure proper performance on target platforms;
+- experiment with process scheduling.
+
 ## Contributing
-When writing commit messages follow [semantic commit messages](https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716) guidelines.
+When writing commit messages please follow [semantic commit messages](https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716) guidelines.
 
 ## Useful tools and resources
 - https://webassembly.github.io/wabt/demo/wat2wasm/ - online compiler for Wasm text representation
