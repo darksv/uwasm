@@ -30,7 +30,7 @@ impl Item for FuncSignature {
 }
 
 fn main() -> Result<(), ParserError> {
-    let mut reader = Reader::new(include_bytes!("../tests/simple.wasm"));
+    let mut reader = Reader::new(include_bytes!("../../tests/simple.wasm"));
 
     const WASM_MAGIC: &'static [u8; 4] = b"\x00asm";
 
