@@ -98,7 +98,7 @@ impl Item for TypeKind {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) enum ParserError {
+pub enum ParserError {
     EndOfStream { offset: usize },
     InvalidValue { offset: usize },
 }

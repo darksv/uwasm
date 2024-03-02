@@ -4,8 +4,8 @@ version = "0.1.1"
 edition = "2021"
 description = "Runtime for WebAssembly modules, suitable for use as a loader for user apps in firmwares running on microcontrollers like ESP32."
 license = "MIT"
-license-file = "../LICENSE"
 authors = ["darksv"]
 readme = "../README.md"
+categories = ["no-std"]
 
 [dependencies]

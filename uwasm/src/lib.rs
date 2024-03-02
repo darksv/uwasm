@@ -1,4 +1,12 @@
-use crate::parser::{Item, ParserError, Reader, SectionKind, TypeKind};
+#![no_std]
+
+extern crate alloc;
+
+use alloc::vec::Vec;
+use core::fmt;
+
+use crate::parser::{Item, Reader, SectionKind, TypeKind};
+pub use crate::parser::ParserError;
 
 mod parser;
 
@@ -29,13 +37,12 @@ impl Item for FuncSignature {
     }
 }
 
-fn main() -> Result<(), ParserError> {
-    let Some(path) = std::env::args_os().nth(1) else {
-        panic!("missing path to .wasm file")
-    };
-    let content = std::fs::read(path).expect("read file");
+pub trait Context {
+    fn write_fmt(&mut self, args: fmt::Arguments);
+}
 
-    let mut reader = Reader::new(&content);
+pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
+    let mut reader = Reader::new(&code);
 
     const WASM_MAGIC: &'static [u8; 4] = b"\x00asm";
 
@@ -43,7 +50,7 @@ fn main() -> Result<(), ParserError> {
         panic!("missing magic");
     }
 
-    println!("Version: {:?}", reader.read_u32()?);
+    write!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
         let section_size = reader.read_usize()?;
         match section_type {
@@ -53,7 +60,7 @@ fn main() -> Result<(), ParserError> {
                     let kind = reader.read::<TypeKind>()?;
                     match kind {
                         TypeKind::Func => {
-                            println!("Signature: {:?}", reader.read::<FuncSignature>()?);
+                            write!(ctx, "Signature: {:?}", reader.read::<FuncSignature>()?);
                         }
                         other => unimplemented!("{:?}", other),
                     }
@@ -70,10 +77,10 @@ fn main() -> Result<(), ParserError> {
                 for _ in 0..num_exports {
                     let name_len = reader.read_usize()?;
                     let name = reader.read_slice(name_len as _)?;
-                    let name = std::str::from_utf8(name).expect("valid utf8"); // TODO
+                    let name = core::str::from_utf8(name).expect("valid utf8"); // TODO
                     let export_kind = reader.read_u8()?;
                     let export_func_idx = reader.read_usize()?;
-                    println!("Found exported: {name} | index: {export_func_idx} | kind: {export_kind}");
+                    write!(ctx, "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}");
                 }
             }
             other => unimplemented!("{:?}", other),
