@@ -30,7 +30,12 @@ impl Item for FuncSignature {
 }
 
 fn main() -> Result<(), ParserError> {
-    let mut reader = Reader::new(include_bytes!("../../tests/simple.wasm"));
+    let Some(path) = std::env::args_os().nth(1) else {
+        panic!("missing path to .wasm file")
+    };
+    let content = std::fs::read(path).expect("read file");
+
+    let mut reader = Reader::new(&content);
 
     const WASM_MAGIC: &'static [u8; 4] = b"\x00asm";
 
