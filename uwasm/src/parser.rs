@@ -12,7 +12,7 @@ impl<'code> Reader<'code> {
     }
 
     pub(crate) fn read_bytes<const N: usize>(&mut self) -> Result<&'code [u8; N], ParserError> {
-        if self.pos + N < self.data.len() {
+        if self.pos + N <= self.data.len() {
             let bytes = self.data[self.pos..][..N].try_into()
                 .expect("enough bytes in stream");
             self.pos += N;
@@ -23,7 +23,7 @@ impl<'code> Reader<'code> {
     }
 
     pub(crate) fn read_slice(&mut self, n: usize) -> Result<&'code [u8], ParserError> {
-        if self.pos + n < self.data.len() {
+        if self.pos + n <= self.data.len() {
             let bytes = &self.data[self.pos..][..n];
             self.pos += n;
             Ok(bytes)
@@ -59,9 +59,10 @@ pub(crate) trait Item: Sized {
 }
 
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub(crate) enum SectionKind {
+    Custom = 0x00,
     Type = 0x01,
     Function = 0x03,
     Export = 0x07,
@@ -71,6 +72,7 @@ pub(crate) enum SectionKind {
 impl Item for SectionKind {
     fn read(reader: &mut Reader, offset: usize) -> Result<Self, ParserError> {
         match reader.read_u8()? {
+            0x00 => Ok(SectionKind::Custom),
             0x01 => Ok(SectionKind::Type),
             0x03 => Ok(SectionKind::Function),
             0x07 => Ok(SectionKind::Export),

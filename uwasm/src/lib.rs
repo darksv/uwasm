@@ -50,17 +50,35 @@ pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
         panic!("missing magic");
     }
 
-    write!(ctx, "Version: {:?}", reader.read_u32()?);
+    writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
-        let section_size = reader.read_usize()?;
+        let _section_size = reader.read_usize()?;
         match section_type {
+            SectionKind::Custom => {
+                let name_len = reader.read_usize()?;
+                let name = reader.read_slice(name_len as _)?;
+                let name = core::str::from_utf8(name).expect("utf-8"); // TODO
+                writeln!(ctx, "Found custom section: {}", name);
+
+                let local_name_type = reader.read_u8()?;
+                let subsection_size = reader.read_usize()?;
+                let num_funcs = reader.read_u8()?;
+
+                for _ in 0..num_funcs {
+                    let func_idx = reader.read_u8()?;
+                    let num_locals = reader.read_u8()?;
+                    for _ in 0..num_locals {
+                        // TODO: read locals
+                    }
+                }
+            }
             SectionKind::Type => {
                 let num_types = reader.read_usize()?;
                 for _ in 0..num_types {
                     let kind = reader.read::<TypeKind>()?;
                     match kind {
                         TypeKind::Func => {
-                            write!(ctx, "Signature: {:?}", reader.read::<FuncSignature>()?);
+                            writeln!(ctx, "Signature: {:?}", reader.read::<FuncSignature>()?);
                         }
                         other => unimplemented!("{:?}", other),
                     }
@@ -80,13 +98,16 @@ pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
                     let name = core::str::from_utf8(name).expect("valid utf8"); // TODO
                     let export_kind = reader.read_u8()?;
                     let export_func_idx = reader.read_usize()?;
-                    write!(ctx, "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}");
+                    writeln!(ctx, "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}");
                 }
             }
-            other => unimplemented!("{:?}", other),
-        }
-        if section_size == 0 {
-            let _fixup = reader.read_usize()?;
+            SectionKind::Code => {
+                let num_funcs = reader.read_usize()?;
+                for _ in 0..num_funcs {
+                    let body_len = reader.read_usize()?;
+
+                }
+            }
         }
     }
 
