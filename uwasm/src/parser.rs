@@ -1,3 +1,5 @@
+use crate::str::ByteStr;
+
 pub(crate) struct Reader<'code> {
     data: &'code [u8],
     pos: usize,
@@ -52,12 +54,19 @@ impl<'code> Reader<'code> {
     pub(crate) fn read<T: Item>(&mut self) -> Result<T, ParserError> {
         T::read(self, self.pos)
     }
+
+    pub(crate) fn read_str(&mut self) -> Result<&'code ByteStr, ParserError> {
+        let len = self.read_usize()?;
+        let bytes = self.read_slice(len)?;
+
+        // SAFETY: ByteStr has the same layout as [u8]
+        Ok(unsafe { core::mem::transmute(bytes) })
+    }
 }
 
 pub(crate) trait Item: Sized {
     fn read(reader: &mut Reader, offset: usize) -> Result<Self, ParserError>;
 }
-
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
@@ -97,6 +106,7 @@ impl Item for TypeKind {
             _ => Err(ParserError::InvalidValue { offset }),
         }
     }
+
 }
 
 #[derive(Debug, Eq, PartialEq)]

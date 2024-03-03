@@ -9,6 +9,7 @@ use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
 
 mod parser;
+mod str;
 
 #[derive(Debug)]
 struct FuncSignature {
@@ -55,9 +56,7 @@ pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
         let _section_size = reader.read_usize()?;
         match section_type {
             SectionKind::Custom => {
-                let name_len = reader.read_usize()?;
-                let name = reader.read_slice(name_len as _)?;
-                let name = core::str::from_utf8(name).expect("utf-8"); // TODO
+                let name = reader.read_str()?;
                 writeln!(ctx, "Found custom section: {}", name);
 
                 let local_name_type = reader.read_u8()?;
@@ -93,9 +92,7 @@ pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
             SectionKind::Export => {
                 let num_exports = reader.read_usize()?;
                 for _ in 0..num_exports {
-                    let name_len = reader.read_usize()?;
-                    let name = reader.read_slice(name_len as _)?;
-                    let name = core::str::from_utf8(name).expect("valid utf8"); // TODO
+                    let name = reader.read_str()?;
                     let export_kind = reader.read_u8()?;
                     let export_func_idx = reader.read_usize()?;
                     writeln!(ctx, "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}");
