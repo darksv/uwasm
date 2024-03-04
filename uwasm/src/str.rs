@@ -10,3 +10,9 @@ impl fmt::Display for ByteStr {
         f.write_str(str)
     }
 }
+
+impl fmt::Debug for ByteStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}

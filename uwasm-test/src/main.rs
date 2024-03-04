@@ -17,7 +17,8 @@ fn main() -> Result<(), ParserError> {
     };
     let content = std::fs::read(path).expect("read file");
 
-    parse(&content, &mut MyCtx)?;
+    let module = parse(&content, &mut MyCtx)?;
+    dbg!(module);
 
     Ok(())
 }

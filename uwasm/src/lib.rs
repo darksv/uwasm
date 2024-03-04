@@ -7,6 +7,7 @@ use core::fmt;
 
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
+use crate::str::ByteStr;
 
 mod parser;
 mod str;
@@ -42,9 +43,16 @@ pub trait Context {
     fn write_fmt(&mut self, args: fmt::Arguments);
 }
 
-pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
+#[derive(Debug)]
+pub struct WasmModule<'code> {
+    exported: Vec<&'code ByteStr>,
+}
+
+pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmModule<'code>, ParserError> {
     let mut reader = Reader::new(&code);
     reader.expect_bytes(b"\x00asm")?;
+
+    let mut exported = Vec::new();
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -91,6 +99,7 @@ pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
                     let export_kind = reader.read_u8()?;
                     let export_func_idx = reader.read_usize()?;
                     writeln!(ctx, "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}");
+                    exported.push(name);
                 }
             }
             SectionKind::Code => {
@@ -123,5 +132,7 @@ pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
         }
     }
 
-    Ok(())
+    Ok(WasmModule {
+        exported
+    })
 }
