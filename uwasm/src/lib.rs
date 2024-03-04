@@ -102,7 +102,27 @@ pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
                 let num_funcs = reader.read_usize()?;
                 for _ in 0..num_funcs {
                     let body_len = reader.read_usize()?;
-
+                    let locals_num = reader.read_usize()?;
+                    loop {
+                        let op = reader.read_u8()?;
+                        match op {
+                            0x0b => {
+                                // end
+                                writeln!(ctx, "end");
+                                break;
+                            }
+                            0x20 => {
+                                // local.get <local>
+                                let local_idx = reader.read_u8()?;
+                                writeln!(ctx, "local.get {}", local_idx);
+                            }
+                            0x6a => {
+                                // i32.add
+                                writeln!(ctx, "i32.add");
+                            }
+                            _ => unimplemented!("opcode {:02x?}", op),
+                        }
+                    }
                 }
             }
         }
