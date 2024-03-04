@@ -14,13 +14,24 @@ impl<'code> Reader<'code> {
     }
 
     pub(crate) fn read_bytes<const N: usize>(&mut self) -> Result<&'code [u8; N], ParserError> {
-        if self.pos + N <= self.data.len() {
-            let bytes = self.data[self.pos..][..N].try_into()
-                .expect("enough bytes in stream");
+        if let Some(bytes) = self.data[self.pos..].first_chunk() {
             self.pos += N;
             Ok(bytes)
         } else {
             Err(ParserError::EndOfStream { offset: self.pos })
+        }
+    }
+
+    pub(crate) fn expect_bytes<const N: usize>(&mut self, expected_bytes: &[u8; N]) -> Result<(), ParserError> {
+        if let Some(bytes) = self.data[self.pos..].first_chunk() {
+            if bytes == expected_bytes {
+                self.pos += N;
+                Ok(())
+            } else {
+                Err(ParserError::UnexpectedBytes { offset: self.pos })
+            }
+        } else {
+            Err(ParserError::NotEnoughBytes { offset: self.pos })
         }
     }
 
@@ -106,11 +117,12 @@ impl Item for TypeKind {
             _ => Err(ParserError::InvalidValue { offset }),
         }
     }
-
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ParserError {
     EndOfStream { offset: usize },
     InvalidValue { offset: usize },
+    UnexpectedBytes { offset: usize },
+    NotEnoughBytes { offset: usize },
 }

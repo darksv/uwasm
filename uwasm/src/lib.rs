@@ -44,12 +44,7 @@ pub trait Context {
 
 pub fn parse(code: &[u8], ctx: &mut impl Context) -> Result<(), ParserError> {
     let mut reader = Reader::new(&code);
-
-    const WASM_MAGIC: &'static [u8; 4] = b"\x00asm";
-
-    if reader.read_bytes::<4>() != Ok(WASM_MAGIC) {
-        panic!("missing magic");
-    }
+    reader.expect_bytes(b"\x00asm")?;
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
