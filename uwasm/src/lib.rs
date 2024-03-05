@@ -4,6 +4,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core::fmt;
+use core::ptr::read;
 
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
@@ -110,19 +111,53 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                     loop {
                         let op = reader.read_u8()?;
                         match op {
+                            0x04 => {
+                                // if
+                                writeln!(ctx, "if");
+                            }
+                            0x05 => {
+                                // else
+                                writeln!(ctx, "else");
+                            }
                             0x0b => {
                                 // end
                                 writeln!(ctx, "end");
                                 break;
+                            }
+                            0x10 => {
+                                // call <func_idx>
+                                let func_idx = reader.read_usize()?;
+                                writeln!(ctx, "call {}", func_idx);
                             }
                             0x20 => {
                                 // local.get <local>
                                 let local_idx = reader.read_u8()?;
                                 writeln!(ctx, "local.get {}", local_idx);
                             }
+                            0x44 => {
+                                // f64.const <literal>
+                                let val = reader.read_f64()?;
+                                writeln!(ctx, "f64.const {}", val);
+                            }
+                            0x63 => {
+                                // f64.lt
+                                writeln!(ctx, "f64.lt");
+                            }
                             0x6a => {
                                 // i32.add
                                 writeln!(ctx, "i32.add");
+                            }
+                            0x7c => {
+                                // f64
+                                writeln!(ctx, "f64");
+                            }
+                            0xa1 => {
+                                // f64.sub
+                                writeln!(ctx, "f64.sub");
+                            }
+                            0xa2 => {
+                                // f64.mul
+                                writeln!(ctx, "f64.mul");
                             }
                             _ => unimplemented!("opcode {:02x?}", op),
                         }

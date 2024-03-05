@@ -62,6 +62,11 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
+    pub(crate) fn read_f64(&mut self) -> Result<f64, ParserError> {
+        self.read_bytes().map(|b| f64::from_le_bytes(*b))
+    }
+
+    #[inline]
     pub(crate) fn read<T: Item>(&mut self) -> Result<T, ParserError> {
         T::read(self, self.pos)
     }
@@ -106,6 +111,7 @@ impl Item for SectionKind {
 #[repr(u8)]
 pub(crate) enum TypeKind {
     Func = 0x60,
+    F64 = 0x7c,
     I32 = 0x7F,
 }
 
@@ -113,6 +119,7 @@ impl Item for TypeKind {
     fn read(reader: &mut Reader, offset: usize) -> Result<Self, ParserError> {
         match reader.read_u8()? {
             0x60 => Ok(TypeKind::Func),
+            0x7C => Ok(TypeKind::F64),
             0x7F => Ok(TypeKind::I32),
             _ => Err(ParserError::InvalidValue { offset }),
         }
