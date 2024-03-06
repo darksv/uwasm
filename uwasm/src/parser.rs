@@ -78,6 +78,24 @@ impl<'code> Reader<'code> {
         // SAFETY: ByteStr has the same layout as [u8]
         Ok(unsafe { core::mem::transmute(bytes) })
     }
+
+    pub(crate) fn marker(&mut self) -> Marker<'code> {
+        Marker {
+            data: self.data,
+            start: self.pos,
+        }
+    }
+}
+
+pub(crate) struct Marker<'code> {
+    data: &'code [u8],
+    start: usize,
+}
+
+impl<'code> Marker<'code> {
+    pub(crate) fn into_slice(self, reader: &mut Reader<'code>) -> &'code [u8] {
+        &self.data[self.start..reader.pos]
+    }
 }
 
 pub(crate) trait Item: Sized {

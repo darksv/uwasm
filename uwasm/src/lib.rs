@@ -12,6 +12,7 @@ use crate::str::ByteStr;
 
 mod parser;
 mod str;
+mod interpreter;
 
 #[derive(Debug)]
 struct FuncSignature {
@@ -46,7 +47,13 @@ pub trait Context {
 
 #[derive(Debug)]
 pub struct WasmModule<'code> {
-    exported: Vec<&'code ByteStr>,
+    functions: Vec<FuncBody<'code>>,
+}
+
+#[derive(Debug)]
+struct FuncBody<'code> {
+    name: &'code ByteStr,
+    code: &'code [u8]
 }
 
 pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmModule<'code>, ParserError> {
@@ -54,6 +61,7 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
     reader.expect_bytes(b"\x00asm")?;
 
     let mut exported = Vec::new();
+    let mut functions = Vec::new();
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -108,6 +116,7 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                 for _ in 0..num_funcs {
                     let body_len = reader.read_usize()?;
                     let locals_num = reader.read_usize()?;
+                    let marker = reader.marker();
                     loop {
                         let op = reader.read_u8()?;
                         match op {
@@ -162,12 +171,16 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                             _ => unimplemented!("opcode {:02x?}", op),
                         }
                     }
+                    functions.push(FuncBody {
+                        name: exported[functions.len()],
+                        code: marker.into_slice(&mut reader)
+                    })
                 }
             }
         }
     }
 
     Ok(WasmModule {
-        exported
+        functions,
     })
 }
