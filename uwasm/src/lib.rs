@@ -2,13 +2,14 @@
 
 extern crate alloc;
 
+use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::fmt;
-use core::ptr::read;
 
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
 use crate::str::ByteStr;
+pub use crate::interpreter::{evaluate, VmContext};
 
 mod parser;
 mod str;
@@ -47,13 +48,15 @@ pub trait Context {
 
 #[derive(Debug)]
 pub struct WasmModule<'code> {
-    functions: Vec<FuncBody<'code>>,
+    pub functions: Vec<FuncBody<'code>>,
 }
 
 #[derive(Debug)]
-struct FuncBody<'code> {
+pub struct FuncBody<'code> {
     name: &'code ByteStr,
-    code: &'code [u8]
+    offset: usize,
+    pub code: &'code [u8],
+    jump_targets: BTreeMap<usize, usize>, // if location => else location
 }
 
 pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmModule<'code>, ParserError> {
@@ -117,16 +120,21 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                     let body_len = reader.read_usize()?;
                     let locals_num = reader.read_usize()?;
                     let marker = reader.marker();
+                    let mut last_if = None;
+                    let mut jump_targets = BTreeMap::new();
                     loop {
+                        let pos = reader.pos();
                         let op = reader.read_u8()?;
                         match op {
                             0x04 => {
                                 // if
                                 writeln!(ctx, "if");
+                                last_if = Some(pos);
                             }
                             0x05 => {
                                 // else
                                 writeln!(ctx, "else");
+                                jump_targets.insert(last_if.unwrap(), pos + 1 - marker.pos());
                             }
                             0x0b => {
                                 // end
@@ -173,7 +181,9 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                     }
                     functions.push(FuncBody {
                         name: exported[functions.len()],
-                        code: marker.into_slice(&mut reader)
+                        offset: marker.pos(),
+                        code: marker.into_slice(&mut reader),
+                        jump_targets
                     })
                 }
             }

@@ -2,7 +2,7 @@ extern crate core;
 
 use std::fmt::Arguments;
 use std::io::Write;
-use uwasm::{Context, parse, ParserError};
+use uwasm::{Context, evaluate, parse, ParserError, VmContext};
 
 struct MyCtx;
 impl Context for MyCtx {
@@ -18,6 +18,8 @@ fn main() -> Result<(), ParserError> {
     let content = std::fs::read(path).expect("read file");
 
     let module = parse(&content, &mut MyCtx)?;
+    let mut ctx = VmContext::new();
+    evaluate(&mut ctx, &module.functions[0], &[1]);
     dbg!(module);
 
     Ok(())

@@ -1,8 +1,23 @@
 use alloc::vec::Vec;
-use crate::parser::Reader;
+use crate::FuncBody;
+use crate::parser::{Reader, TypeKind};
 
-struct VmContext {
+pub struct VmContext {
     stack: VmStack,
+    call_stack: Vec<StackFrame>,
+}
+
+impl VmContext {
+    pub fn new() -> Self {
+        Self {
+            stack: VmStack { data: Vec::new() },
+            call_stack: Vec::new(),
+        }
+    }
+}
+
+struct StackFrame {
+
 }
 
 struct VmStack {
@@ -18,10 +33,11 @@ impl VmStack {
         self.data.extend(val.to_le_bytes());
     }
 
+    #[track_caller]
     fn pop_bytes<const N: usize>(&mut self) -> [u8; N] {
         let mut b = [0u8; N];
         for i in 0..N {
-            b[N - i] = self.data.pop().unwrap();
+            b[N - i - 1] = self.data.pop().unwrap();
         }
         b
     }
@@ -32,18 +48,32 @@ impl VmStack {
     }
 
     #[inline]
+    #[track_caller]
     fn pop_f64(&mut self) -> f64 {
         f64::from_le_bytes(self.pop_bytes())
     }
 }
 
-fn evaluate(ctx: &mut VmContext, reader: &mut Reader<'_>, params: &[u32]) {
+pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[u32]) {
+    let mut reader = Reader::new(func_body.code);
     loop {
+        let pos = func_body.offset + reader.pos();
         let op = reader.read_u8().unwrap();
         match op {
             0x04 => {
                 // if
-                unimplemented!();
+                let cond = match reader.read::<TypeKind>().unwrap() {
+                    TypeKind::Func => todo!(),
+                    TypeKind::F64 => {
+                        let x = ctx.stack.pop_f64();
+                        x != 0.0
+                    }
+                    TypeKind::I32 => todo!(),
+                };
+
+                if !cond {
+                    reader.skip_to(func_body.jump_targets[&pos]);
+                }
             }
             0x05 => {
                 // else

@@ -13,6 +13,14 @@ impl<'code> Reader<'code> {
         }
     }
 
+    pub(crate) fn pos(&self) -> usize {
+        self.pos
+    }
+
+    pub(crate) fn skip_to(&mut self, target_offset: usize) {
+        self.pos = target_offset;
+    }
+
     pub(crate) fn read_bytes<const N: usize>(&mut self) -> Result<&'code [u8; N], ParserError> {
         if let Some(bytes) = self.data[self.pos..].first_chunk() {
             self.pos += N;
@@ -93,6 +101,10 @@ pub(crate) struct Marker<'code> {
 }
 
 impl<'code> Marker<'code> {
+    pub(crate) fn pos(&self) -> usize {
+        self.start
+    }
+
     pub(crate) fn into_slice(self, reader: &mut Reader<'code>) -> &'code [u8] {
         &self.data[self.start..reader.pos]
     }
