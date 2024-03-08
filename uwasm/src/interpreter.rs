@@ -17,7 +17,8 @@ impl VmContext {
 }
 
 struct StackFrame {
-
+    func_idx: usize,
+    params: Vec<f64>,
 }
 
 struct VmStack {
@@ -54,7 +55,7 @@ impl VmStack {
     }
 }
 
-pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[u32]) {
+pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs: &[FuncBody]) -> f64 {
     let mut reader = Reader::new(func_body.code);
     loop {
         let pos = func_body.offset + reader.pos();
@@ -86,12 +87,23 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[u32]) {
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
-                unimplemented!();
+                let a = ctx.stack.pop_f64();
+                ctx.call_stack.push(StackFrame {
+                    func_idx,
+                    params: {
+                        let mut v = Vec::new();
+                        v.push(a);
+                        v
+                    }
+                });
+                panic!("calling with args {:?}", &[a]);
+                let result = evaluate(ctx, &funcs[func_idx], &[a], funcs);
+                ctx.stack.push_f64(result);
             }
             0x20 => {
                 // local.get <local>
                 let local_idx = reader.read_u8().unwrap();
-                ctx.stack.push_f64(params[local_idx as usize] as f64);
+                ctx.stack.push_f64(params[local_idx as usize]);
             }
             0x44 => {
                 // f64.const <literal>
@@ -109,10 +121,6 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[u32]) {
                 let a = ctx.stack.pop_i32();
                 let b = ctx.stack.pop_i32();
                 ctx.stack.push_i32(a + b);
-            }
-            0x7c => {
-                // f64
-                unimplemented!();
             }
             0xa1 => {
                 // f64.sub

@@ -19,7 +19,7 @@ fn main() -> Result<(), ParserError> {
 
     let module = parse(&content, &mut MyCtx)?;
     let mut ctx = VmContext::new();
-    evaluate(&mut ctx, &module.functions[0], &[1]);
+    evaluate(&mut ctx, &module.functions[0], &[1.0], &module.functions[..]);
     dbg!(module);
 
     Ok(())
