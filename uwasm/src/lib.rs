@@ -121,6 +121,7 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                     let locals_num = reader.read_usize()?;
                     let marker = reader.marker();
                     let mut last_if = None;
+                    let mut last_else = None;
                     let mut jump_targets = BTreeMap::new();
                     loop {
                         let pos = reader.pos();
@@ -135,11 +136,18 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                                 // else
                                 writeln!(ctx, "else");
                                 jump_targets.insert(last_if.unwrap(), pos + 1 - marker.pos());
+                                last_else = Some(pos);
                             }
                             0x0b => {
                                 // end
                                 writeln!(ctx, "end");
-                                break;
+                                if let Some(le) = last_else {
+                                    jump_targets.insert(le, pos + 1 - marker.pos());
+                                    last_else = None;
+                                } else {
+                                    // end of function
+                                    break;
+                                }
                             }
                             0x10 => {
                                 // call <func_idx>
@@ -176,7 +184,7 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                                 // f64.mul
                                 writeln!(ctx, "f64.mul");
                             }
-                            _ => unimplemented!("opcode {:02x?}", op),
+                            _ => unimplemented!("opcode {op:02x?} @ {pos:02x}"),
                         }
                     }
                     functions.push(FuncBody {

@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use crate::FuncBody;
+use crate::{Context, FuncBody, ParserError};
 use crate::parser::{Reader, TypeKind};
 
 pub struct VmContext {
@@ -55,11 +55,16 @@ impl VmStack {
     }
 }
 
-pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs: &[FuncBody]) -> f64 {
+pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs: &[FuncBody], x: &mut impl Context) -> f64 {
     let mut reader = Reader::new(func_body.code);
     loop {
         let pos = func_body.offset + reader.pos();
-        let op = reader.read_u8().unwrap();
+        let op = match reader.read_u8() {
+            Ok(op) => op,
+            Err(ParserError::EndOfStream { .. }) => break ctx.stack.pop_f64(),
+            Err(e) => panic!("other err: {e:?}"),
+        };
+
         match op {
             0x04 => {
                 // if
@@ -78,11 +83,11 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs
             }
             0x05 => {
                 // else
-                unimplemented!();
+                reader.skip_to(func_body.jump_targets[&pos] + 1);
             }
             0x0b => {
                 // end
-                unimplemented!();
+                // unimplemented!();
             }
             0x10 => {
                 // call <func_idx>
@@ -94,10 +99,10 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs
                         let mut v = Vec::new();
                         v.push(a);
                         v
-                    }
+                    },
                 });
-                panic!("calling with args {:?}", &[a]);
-                let result = evaluate(ctx, &funcs[func_idx], &[a], funcs);
+                let result = evaluate(ctx, &funcs[func_idx], &[a], funcs, x);
+                // writeln!(x, "calling with args {:?} = {result}", &[a]);
                 ctx.stack.push_f64(result);
             }
             0x20 => {
@@ -112,26 +117,26 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs
             }
             0x63 => {
                 // f64.lt
-                let a = ctx.stack.pop_f64();
                 let b = ctx.stack.pop_f64();
+                let a = ctx.stack.pop_f64();
                 ctx.stack.push_f64((a < b) as i32 as f64);
             }
             0x6a => {
                 // i32.add
-                let a = ctx.stack.pop_i32();
                 let b = ctx.stack.pop_i32();
+                let a = ctx.stack.pop_i32();
                 ctx.stack.push_i32(a + b);
             }
             0xa1 => {
                 // f64.sub
-                let a = ctx.stack.pop_f64();
                 let b = ctx.stack.pop_f64();
+                let a = ctx.stack.pop_f64();
                 ctx.stack.push_f64(a - b);
             }
             0xa2 => {
                 // f64.mul
-                let a = ctx.stack.pop_f64();
                 let b = ctx.stack.pop_f64();
+                let a = ctx.stack.pop_f64();
                 ctx.stack.push_f64(a * b);
             }
             _ => unimplemented!("opcode {:02x?}", op),
