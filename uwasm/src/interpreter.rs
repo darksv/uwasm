@@ -92,16 +92,18 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
-                let a = ctx.stack.pop_f64();
+
+                // TODO: maybe read params as a slice directly from the stack memory?
+                // TODO: handle different types
+                let params: Vec<_> = (0..funcs[func_idx].signature.params.len())
+                    .map(|_| ctx.stack.pop_f64())
+                    .collect();
+
                 ctx.call_stack.push(StackFrame {
                     func_idx,
-                    params: {
-                        let mut v = Vec::new();
-                        v.push(a);
-                        v
-                    },
+                    params: params.clone(),
                 });
-                let result = evaluate(ctx, &funcs[func_idx], &[a], funcs, x);
+                let result = evaluate(ctx, &funcs[func_idx], &params, funcs, x);
                 // writeln!(x, "calling with args {:?} = {result}", &[a]);
                 ctx.stack.push_f64(result);
             }

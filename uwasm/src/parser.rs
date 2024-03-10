@@ -138,6 +138,7 @@ impl Item for SectionKind {
 }
 
 #[derive(Debug)]
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub(crate) enum TypeKind {
     Func = 0x60,

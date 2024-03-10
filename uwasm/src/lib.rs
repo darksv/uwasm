@@ -16,6 +16,7 @@ mod str;
 mod interpreter;
 
 #[derive(Debug)]
+#[derive(Clone)]
 struct FuncSignature {
     params: Vec<TypeKind>,
     results: Vec<TypeKind>,
@@ -54,6 +55,7 @@ pub struct WasmModule<'code> {
 #[derive(Debug)]
 pub struct FuncBody<'code> {
     name: &'code ByteStr,
+    pub signature: FuncSignature,
     offset: usize,
     pub code: &'code [u8],
     jump_targets: BTreeMap<usize, usize>, // if location => else location
@@ -65,6 +67,7 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
 
     let mut exported = Vec::new();
     let mut functions = Vec::new();
+    let mut signatures = Vec::new();
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -92,7 +95,9 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                     let kind = reader.read::<TypeKind>()?;
                     match kind {
                         TypeKind::Func => {
-                            writeln!(ctx, "Signature: {:?}", reader.read::<FuncSignature>()?);
+                            let sig = reader.read::<FuncSignature>()?;
+                            writeln!(ctx, "Signature: {:?}", sig);
+                            signatures.push(sig);
                         }
                         other => unimplemented!("{:?}", other),
                     }
@@ -189,6 +194,7 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                     }
                     functions.push(FuncBody {
                         name: exported[functions.len()],
+                        signature: signatures[functions.len()].clone(),
                         offset: marker.pos(),
                         code: marker.into_slice(&mut reader),
                         jump_targets
