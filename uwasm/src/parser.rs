@@ -146,6 +146,16 @@ pub(crate) enum TypeKind {
     I32 = 0x7F,
 }
 
+impl TypeKind {
+    pub(crate) fn len_bytes(&self) -> usize {
+        match *self {
+            TypeKind::Func => todo!(),
+            TypeKind::F64 => 8,
+            TypeKind::I32 => 4,
+        }
+    }
+}
+
 impl Item for TypeKind {
     fn read(reader: &mut Reader, offset: usize) -> Result<Self, ParserError> {
         match reader.read_u8()? {

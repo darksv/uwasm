@@ -9,7 +9,7 @@ use core::fmt;
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
 use crate::str::ByteStr;
-pub use crate::interpreter::{evaluate, VmContext};
+pub use crate::interpreter::{evaluate, VmContext, UntypedMemorySpan};
 
 mod parser;
 mod str;

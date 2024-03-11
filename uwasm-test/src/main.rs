@@ -2,7 +2,7 @@ extern crate core;
 
 use std::fmt::Arguments;
 use std::io::Write;
-use uwasm::{Context, evaluate, parse, ParserError, VmContext};
+use uwasm::{Context, evaluate, UntypedMemorySpan, parse, ParserError, VmContext};
 
 struct MyCtx;
 
@@ -21,7 +21,9 @@ fn main() -> Result<(), ParserError> {
     let module = parse(&content, &mut MyCtx)?;
     let mut ctx = VmContext::new();
     for i in 0..10 {
-        let res = evaluate(&mut ctx, &module.functions[0], &[i as _], &module.functions[..], &mut MyCtx);
+        let res = evaluate(&mut ctx, &module.functions[0], &UntypedMemorySpan::new(
+            &(i as f64).to_le_bytes()
+        ), &module.functions[..], &mut MyCtx);
         dbg!(res);
     }
 

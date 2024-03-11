@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use crate::{Context, FuncBody, ParserError};
+use crate::{Context, FuncBody, FuncSignature, ParserError};
 use crate::parser::{Reader, TypeKind};
 
 pub struct VmContext {
@@ -18,7 +18,6 @@ impl VmContext {
 
 struct StackFrame {
     func_idx: usize,
-    params: Vec<f64>,
 }
 
 struct VmStack {
@@ -26,8 +25,11 @@ struct VmStack {
 }
 
 impl VmStack {
+    fn push_bytes<const N: usize>(&mut self, data: [u8; N]) {
+        self.data.extend(data);
+    }
     fn push_f64(&mut self, val: f64) {
-        self.data.extend(val.to_le_bytes());
+        self.push_bytes(val.to_le_bytes());
     }
 
     fn push_i32(&mut self, val: i32) {
@@ -53,9 +55,36 @@ impl VmStack {
     fn pop_f64(&mut self) -> f64 {
         f64::from_le_bytes(self.pop_bytes())
     }
+
+    fn slice_top(&self, n: usize) -> &'_ [u8] {
+        &self.data[self.data.len() - n..]
+    }
 }
 
-pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs: &[FuncBody], x: &mut impl Context) -> f64 {
+pub struct UntypedMemorySpan<'mem> {
+    data: &'mem [u8],
+}
+
+impl<'mem> UntypedMemorySpan<'mem> {
+    pub fn new(data: &'mem [u8]) -> Self {
+        Self { data }
+    }
+
+    fn read_param_raw<const N: usize>(&self, func_signature: &FuncSignature, idx: usize) -> &[u8; N] {
+        let offset: usize = func_signature.params.iter().take(idx).map(|t| t.len_bytes()).sum();
+        self.data[offset..].first_chunk().unwrap()
+    }
+
+    fn push_into(&self, stack: &mut VmStack, local_idx: u8, sig: &FuncSignature) {
+        match sig.params[local_idx as usize] {
+            TypeKind::Func => {}
+            TypeKind::F64 => stack.push_bytes(*self.read_param_raw::<8>(sig, local_idx as _)),
+            TypeKind::I32 => {}
+        }
+    }
+}
+
+pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &UntypedMemorySpan, funcs: &[FuncBody], x: &mut impl Context) -> f64 {
     let mut reader = Reader::new(func_body.code);
     loop {
         let pos = func_body.offset + reader.pos();
@@ -92,25 +121,27 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &[f64], funcs
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
+                let params: Vec<_> = funcs[func_idx].signature.params
+                    .iter()
+                    .flat_map(|t| {
+                        match t {
+                            TypeKind::Func => todo!(),
+                            TypeKind::F64 => ctx.stack.pop_f64().to_le_bytes(),
+                            TypeKind::I32 => todo!(),
+                        }
+                    }).collect();
 
-                // TODO: maybe read params as a slice directly from the stack memory?
-                // TODO: handle different types
-                let params: Vec<_> = (0..funcs[func_idx].signature.params.len())
-                    .map(|_| ctx.stack.pop_f64())
-                    .collect();
-
-                ctx.call_stack.push(StackFrame {
-                    func_idx,
-                    params: params.clone(),
-                });
-                let result = evaluate(ctx, &funcs[func_idx], &params, funcs, x);
+                ctx.call_stack.push(StackFrame { func_idx });
+                let result = evaluate(ctx, &funcs[func_idx], &UntypedMemorySpan {
+                    data: &params,
+                }, funcs, x);
                 // writeln!(x, "calling with args {:?} = {result}", &[a]);
                 ctx.stack.push_f64(result);
             }
             0x20 => {
                 // local.get <local>
                 let local_idx = reader.read_u8().unwrap();
-                ctx.stack.push_f64(params[local_idx as usize]);
+                params.push_into(&mut ctx.stack, local_idx, &func_body.signature);
             }
             0x44 => {
                 // f64.const <literal>
