@@ -77,12 +77,12 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                 let name = reader.read_str()?;
                 writeln!(ctx, "Found custom section: {}", name);
 
-                let local_name_type = reader.read_u8()?;
-                let subsection_size = reader.read_usize()?;
+                let _local_name_type = reader.read_u8()?;
+                let _subsection_size = reader.read_usize()?;
                 let num_funcs = reader.read_u8()?;
 
                 for _ in 0..num_funcs {
-                    let func_idx = reader.read_u8()?;
+                    let _func_idx = reader.read_u8()?;
                     let num_locals = reader.read_u8()?;
                     for _ in 0..num_locals {
                         // TODO: read locals
@@ -207,4 +207,35 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
     Ok(WasmModule {
         functions,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use core::fmt::Arguments;
+    use crate::{Context, evaluate, parse, UntypedMemorySpan, VmContext};
+
+    struct MyCtx;
+    impl Context for MyCtx {
+        fn write_fmt(&mut self, _args: Arguments) {
+
+        }
+    }
+
+    fn native_factorial(n: u32) -> u32 {
+        (1..=n).product()
+    }
+
+    #[test]
+    fn factorial() {
+        let module = parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx)
+            .expect("parse module");
+        let mut ctx = VmContext::new();
+        for i in 0..10 {
+            let res = evaluate(&mut ctx, &module.functions[0], &UntypedMemorySpan::new(
+                &(i as f64).to_le_bytes()
+            ), &module.functions[..], &mut MyCtx);
+
+            assert_eq!(res as u32, native_factorial(i));
+        }
+    }
 }
