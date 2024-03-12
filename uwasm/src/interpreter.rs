@@ -3,7 +3,7 @@ use crate::{Context, FuncBody, FuncSignature, ParserError};
 use crate::parser::{Reader, TypeKind};
 
 pub struct VmContext {
-    stack: VmStack,
+    pub(crate) stack: VmStack,
     call_stack: Vec<StackFrame>,
 }
 
@@ -20,7 +20,7 @@ struct StackFrame {
     func_idx: usize,
 }
 
-struct VmStack {
+pub struct VmStack {
     data: Vec<u8>,
 }
 
@@ -52,7 +52,7 @@ impl VmStack {
 
     #[inline]
     #[track_caller]
-    fn pop_f64(&mut self) -> f64 {
+    pub fn pop_f64(&mut self) -> f64 {
         f64::from_le_bytes(self.pop_bytes())
     }
 
@@ -84,13 +84,13 @@ impl<'mem> UntypedMemorySpan<'mem> {
     }
 }
 
-pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &UntypedMemorySpan, funcs: &[FuncBody], x: &mut impl Context) -> f64 {
+pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &UntypedMemorySpan, funcs: &[FuncBody], x: &mut impl Context) {
     let mut reader = Reader::new(func_body.code);
     loop {
         let pos = func_body.offset + reader.pos();
         let op = match reader.read_u8() {
             Ok(op) => op,
-            Err(ParserError::EndOfStream { .. }) => break ctx.stack.pop_f64(),
+            Err(ParserError::EndOfStream { .. }) => break,
             Err(e) => panic!("other err: {e:?}"),
         };
 
@@ -132,11 +132,10 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &UntypedMemor
                     }).collect();
 
                 ctx.call_stack.push(StackFrame { func_idx });
-                let result = evaluate(ctx, &funcs[func_idx], &UntypedMemorySpan {
+                // TODO: get rid of recurrent calls in favour of a managed call stack
+                evaluate(ctx, &funcs[func_idx], &UntypedMemorySpan {
                     data: &params,
                 }, funcs, x);
-                // writeln!(x, "calling with args {:?} = {result}", &[a]);
-                ctx.stack.push_f64(result);
             }
             0x20 => {
                 // local.get <local>

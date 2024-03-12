@@ -231,11 +231,11 @@ mod tests {
             .expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            let res = evaluate(&mut ctx, &module.functions[0], &UntypedMemorySpan::new(
+            evaluate(&mut ctx, &module.functions[0], &UntypedMemorySpan::new(
                 &(i as f64).to_le_bytes()
             ), &module.functions[..], &mut MyCtx);
 
-            assert_eq!(res as u32, native_factorial(i));
+            assert_eq!(ctx.stack.pop_f64() as u32, native_factorial(i));
         }
     }
 }
