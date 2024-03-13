@@ -116,9 +116,10 @@ pub fn evaluate<'code>(
         let params = UntypedMemorySpan {
             data: &frame.params,
         };
+        let current_func = &funcs[func_idx];
         let reader = &mut frame.reader;
+        let pos = current_func.offset + reader.pos();
 
-        let pos = funcs[func_idx].offset + reader.pos();
         let op = match reader.read_u8() {
             Ok(op) => op,
             Err(ParserError::EndOfStream { .. }) => {
@@ -142,12 +143,12 @@ pub fn evaluate<'code>(
                 };
 
                 if !cond {
-                    reader.skip_to(funcs[func_idx].jump_targets[&pos]);
+                    reader.skip_to(current_func.jump_targets[&pos]);
                 }
             }
             0x05 => {
                 // else
-                reader.skip_to(funcs[func_idx].jump_targets[&pos] + 1);
+                reader.skip_to(current_func.jump_targets[&pos] + 1);
             }
             0x0b => {
                 // end
@@ -156,7 +157,7 @@ pub fn evaluate<'code>(
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
-                let params: Vec<_> = funcs[func_idx]
+                let params: Vec<_> = current_func
                     .signature
                     .params
                     .iter()
@@ -169,14 +170,14 @@ pub fn evaluate<'code>(
 
                 ctx.call_stack.push(StackFrame {
                     func_idx,
-                    reader: Reader::new(&funcs[func_idx].code),
+                    reader: Reader::new(&current_func.code),
                     params,
                 });
             }
             0x20 => {
                 // local.get <local>
                 let local_idx = reader.read_u8().unwrap();
-                params.push_into(&mut ctx.stack, local_idx, &funcs[func_idx].signature);
+                params.push_into(&mut ctx.stack, local_idx, &current_func.signature);
             }
             0x44 => {
                 // f64.const <literal>
