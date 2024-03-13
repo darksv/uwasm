@@ -1,3 +1,4 @@
+#![feature(gen_blocks)]
 #![no_std]
 
 extern crate alloc;
@@ -9,7 +10,7 @@ use core::fmt;
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
 use crate::str::ByteStr;
-pub use crate::interpreter::{evaluate, VmContext, UntypedMemorySpan};
+pub use crate::interpreter::{evaluate, VmContext, UntypedMemorySpan, StackFrame};
 
 mod parser;
 mod str;
@@ -212,7 +213,7 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
 #[cfg(test)]
 mod tests {
     use core::fmt::Arguments;
-    use crate::{Context, evaluate, parse, UntypedMemorySpan, VmContext};
+    use crate::{Context, evaluate, parse, StackFrame, VmContext};
 
     struct MyCtx;
     impl Context for MyCtx {
@@ -231,9 +232,8 @@ mod tests {
             .expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            evaluate(&mut ctx, &module.functions[0], &UntypedMemorySpan::new(
-                &(i as f64).to_le_bytes()
-            ), &module.functions[..], &mut MyCtx);
+            ctx.call_stack.push(StackFrame::new(&module, 0, (i as f64).to_le_bytes().to_vec()));
+            evaluate(&mut ctx, 0, &module.functions[..], &mut MyCtx);
 
             assert_eq!(ctx.stack.pop_f64() as u32, native_factorial(i));
         }

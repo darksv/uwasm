@@ -1,13 +1,13 @@
 use alloc::vec::Vec;
-use crate::{Context, FuncBody, FuncSignature, ParserError};
+use crate::{Context, FuncBody, FuncSignature, ParserError, WasmModule};
 use crate::parser::{Reader, TypeKind};
 
-pub struct VmContext {
-    pub(crate) stack: VmStack,
-    call_stack: Vec<StackFrame>,
+pub struct VmContext<'code> {
+    pub stack: VmStack,
+    pub call_stack: Vec<StackFrame<'code>>,
 }
 
-impl VmContext {
+impl VmContext<'_> {
     pub fn new() -> Self {
         Self {
             stack: VmStack { data: Vec::new() },
@@ -16,8 +16,20 @@ impl VmContext {
     }
 }
 
-struct StackFrame {
+pub struct StackFrame<'code> {
     func_idx: usize,
+    reader: Reader<'code>,
+    params: Vec<u8>,
+}
+
+impl<'code> StackFrame<'code> {
+    pub fn new(module: &'code WasmModule, idx: usize, params: Vec<u8>) -> Self {
+        Self {
+            func_idx: idx,
+            reader: Reader::new(&module.functions[idx].code),
+            params,
+        }
+    }
 }
 
 pub struct VmStack {
@@ -39,6 +51,7 @@ impl VmStack {
     #[track_caller]
     fn pop_bytes<const N: usize>(&mut self) -> [u8; N] {
         let mut b = [0u8; N];
+        assert!(self.data.len() >= N);
         for i in 0..N {
             b[N - i - 1] = self.data.pop().unwrap();
         }
@@ -84,13 +97,19 @@ impl<'mem> UntypedMemorySpan<'mem> {
     }
 }
 
-pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &UntypedMemorySpan, funcs: &[FuncBody], x: &mut impl Context) {
-    let mut reader = Reader::new(func_body.code);
-    loop {
-        let pos = func_body.offset + reader.pos();
+pub fn evaluate<'code>(ctx: &mut VmContext<'code>, func_idx: usize, funcs: &[FuncBody<'code>], x: &mut impl Context) {
+    while let Some(frame) = ctx.call_stack.last_mut() {
+        let params = UntypedMemorySpan{data: &frame.params};
+        let reader = &mut frame.reader;
+
+        let pos = funcs[func_idx].offset + reader.pos();
         let op = match reader.read_u8() {
             Ok(op) => op,
-            Err(ParserError::EndOfStream { .. }) => break,
+            Err(ParserError::EndOfStream { .. }) => {
+                let _ = ctx.call_stack.pop();
+                // don't care if this is the last call - it will be taken care of before next iteration
+                continue;
+            },
             Err(e) => panic!("other err: {e:?}"),
         };
 
@@ -107,12 +126,12 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &UntypedMemor
                 };
 
                 if !cond {
-                    reader.skip_to(func_body.jump_targets[&pos]);
+                    reader.skip_to(funcs[func_idx].jump_targets[&pos]);
                 }
             }
             0x05 => {
                 // else
-                reader.skip_to(func_body.jump_targets[&pos] + 1);
+                reader.skip_to(funcs[func_idx].jump_targets[&pos] + 1);
             }
             0x0b => {
                 // end
@@ -131,16 +150,16 @@ pub fn evaluate(ctx: &mut VmContext, func_body: &FuncBody, params: &UntypedMemor
                         }
                     }).collect();
 
-                ctx.call_stack.push(StackFrame { func_idx });
-                // TODO: get rid of recurrent calls in favour of a managed call stack
-                evaluate(ctx, &funcs[func_idx], &UntypedMemorySpan {
-                    data: &params,
-                }, funcs, x);
+                ctx.call_stack.push(StackFrame {
+                    func_idx,
+                    reader: Reader::new(&funcs[func_idx].code),
+                    params,
+                });
             }
             0x20 => {
                 // local.get <local>
                 let local_idx = reader.read_u8().unwrap();
-                params.push_into(&mut ctx.stack, local_idx, &func_body.signature);
+                params.push_into(&mut ctx.stack, local_idx, &funcs[func_idx].signature);
             }
             0x44 => {
                 // f64.const <literal>
