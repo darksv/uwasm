@@ -7,10 +7,7 @@ pub(crate) struct Reader<'code> {
 
 impl<'code> Reader<'code> {
     pub(crate) fn new(data: &'code [u8]) -> Self {
-        Self {
-            data,
-            pos: 0,
-        }
+        Self { data, pos: 0 }
     }
 
     pub(crate) fn pos(&self) -> usize {
@@ -30,7 +27,10 @@ impl<'code> Reader<'code> {
         }
     }
 
-    pub(crate) fn expect_bytes<const N: usize>(&mut self, expected_bytes: &[u8; N]) -> Result<(), ParserError> {
+    pub(crate) fn expect_bytes<const N: usize>(
+        &mut self,
+        expected_bytes: &[u8; N],
+    ) -> Result<(), ParserError> {
         if let Some(bytes) = self.data[self.pos..].first_chunk() {
             if bytes == expected_bytes {
                 self.pos += N;
@@ -137,8 +137,7 @@ impl Item for SectionKind {
     }
 }
 
-#[derive(Debug)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub(crate) enum TypeKind {
     Func = 0x60,

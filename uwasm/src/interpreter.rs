@@ -1,6 +1,6 @@
-use alloc::vec::Vec;
-use crate::{Context, FuncBody, FuncSignature, ParserError, WasmModule};
 use crate::parser::{Reader, TypeKind};
+use crate::{Context, FuncBody, FuncSignature, ParserError, WasmModule};
+use alloc::vec::Vec;
 
 pub struct VmContext<'code> {
     pub stack: VmStack,
@@ -83,8 +83,17 @@ impl<'mem> UntypedMemorySpan<'mem> {
         Self { data }
     }
 
-    fn read_param_raw<const N: usize>(&self, func_signature: &FuncSignature, idx: usize) -> &[u8; N] {
-        let offset: usize = func_signature.params.iter().take(idx).map(|t| t.len_bytes()).sum();
+    fn read_param_raw<const N: usize>(
+        &self,
+        func_signature: &FuncSignature,
+        idx: usize,
+    ) -> &[u8; N] {
+        let offset: usize = func_signature
+            .params
+            .iter()
+            .take(idx)
+            .map(|t| t.len_bytes())
+            .sum();
         self.data[offset..].first_chunk().unwrap()
     }
 
@@ -97,9 +106,16 @@ impl<'mem> UntypedMemorySpan<'mem> {
     }
 }
 
-pub fn evaluate<'code>(ctx: &mut VmContext<'code>, func_idx: usize, funcs: &[FuncBody<'code>], x: &mut impl Context) {
+pub fn evaluate<'code>(
+    ctx: &mut VmContext<'code>,
+    func_idx: usize,
+    funcs: &[FuncBody<'code>],
+    x: &mut impl Context,
+) {
     while let Some(frame) = ctx.call_stack.last_mut() {
-        let params = UntypedMemorySpan{data: &frame.params};
+        let params = UntypedMemorySpan {
+            data: &frame.params,
+        };
         let reader = &mut frame.reader;
 
         let pos = funcs[func_idx].offset + reader.pos();
@@ -109,7 +125,7 @@ pub fn evaluate<'code>(ctx: &mut VmContext<'code>, func_idx: usize, funcs: &[Fun
                 let _ = ctx.call_stack.pop();
                 // don't care if this is the last call - it will be taken care of before next iteration
                 continue;
-            },
+            }
             Err(e) => panic!("other err: {e:?}"),
         };
 
@@ -140,15 +156,16 @@ pub fn evaluate<'code>(ctx: &mut VmContext<'code>, func_idx: usize, funcs: &[Fun
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
-                let params: Vec<_> = funcs[func_idx].signature.params
+                let params: Vec<_> = funcs[func_idx]
+                    .signature
+                    .params
                     .iter()
-                    .flat_map(|t| {
-                        match t {
-                            TypeKind::Func => todo!(),
-                            TypeKind::F64 => ctx.stack.pop_f64().to_le_bytes(),
-                            TypeKind::I32 => todo!(),
-                        }
-                    }).collect();
+                    .flat_map(|t| match t {
+                        TypeKind::Func => todo!(),
+                        TypeKind::F64 => ctx.stack.pop_f64().to_le_bytes(),
+                        TypeKind::I32 => todo!(),
+                    })
+                    .collect();
 
                 ctx.call_stack.push(StackFrame {
                     func_idx,

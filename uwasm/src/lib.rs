@@ -1,4 +1,3 @@
-#![feature(gen_blocks)]
 #![no_std]
 
 extern crate alloc;
@@ -7,17 +6,16 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::fmt;
 
-use crate::parser::{Item, Reader, SectionKind, TypeKind};
+pub use crate::interpreter::{evaluate, StackFrame, UntypedMemorySpan, VmContext};
 pub use crate::parser::ParserError;
+use crate::parser::{Item, Reader, SectionKind, TypeKind};
 use crate::str::ByteStr;
-pub use crate::interpreter::{evaluate, VmContext, UntypedMemorySpan, StackFrame};
 
+mod interpreter;
 mod parser;
 mod str;
-mod interpreter;
 
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct FuncSignature {
     params: Vec<TypeKind>,
     results: Vec<TypeKind>,
@@ -37,10 +35,7 @@ impl Item for FuncSignature {
             results.push(reader.read::<TypeKind>()?);
         }
 
-        Ok(FuncSignature {
-            params,
-            results,
-        })
+        Ok(FuncSignature { params, results })
     }
 }
 
@@ -62,7 +57,10 @@ pub struct FuncBody<'code> {
     jump_targets: BTreeMap<usize, usize>, // if location => else location
 }
 
-pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmModule<'code>, ParserError> {
+pub fn parse<'code>(
+    code: &'code [u8],
+    ctx: &mut impl Context,
+) -> Result<WasmModule<'code>, ParserError> {
     let mut reader = Reader::new(&code);
     reader.expect_bytes(b"\x00asm")?;
 
@@ -116,7 +114,10 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                     let name = reader.read_str()?;
                     let export_kind = reader.read_u8()?;
                     let export_func_idx = reader.read_usize()?;
-                    writeln!(ctx, "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}");
+                    writeln!(
+                        ctx,
+                        "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}"
+                    );
                     exported.push(name);
                 }
             }
@@ -198,28 +199,24 @@ pub fn parse<'code>(code: &'code [u8], ctx: &mut impl Context) -> Result<WasmMod
                         signature: signatures[functions.len()].clone(),
                         offset: marker.pos(),
                         code: marker.into_slice(&mut reader),
-                        jump_targets
+                        jump_targets,
                     })
                 }
             }
         }
     }
 
-    Ok(WasmModule {
-        functions,
-    })
+    Ok(WasmModule { functions })
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{evaluate, parse, Context, StackFrame, VmContext};
     use core::fmt::Arguments;
-    use crate::{Context, evaluate, parse, StackFrame, VmContext};
 
     struct MyCtx;
     impl Context for MyCtx {
-        fn write_fmt(&mut self, _args: Arguments) {
-
-        }
+        fn write_fmt(&mut self, _args: Arguments) {}
     }
 
     fn native_factorial(n: u32) -> u32 {
@@ -228,11 +225,15 @@ mod tests {
 
     #[test]
     fn factorial() {
-        let module = parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx)
-            .expect("parse module");
+        let module =
+            parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            ctx.call_stack.push(StackFrame::new(&module, 0, (i as f64).to_le_bytes().to_vec()));
+            ctx.call_stack.push(StackFrame::new(
+                &module,
+                0,
+                (i as f64).to_le_bytes().to_vec(),
+            ));
             evaluate(&mut ctx, 0, &module.functions[..], &mut MyCtx);
 
             assert_eq!(ctx.stack.pop_f64() as u32, native_factorial(i));
