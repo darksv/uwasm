@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 pub struct VmContext<'code> {
     pub stack: VmStack,
-    pub call_stack: Vec<StackFrame<'code>>,
+    call_stack: Vec<StackFrame<'code>>,
 }
 
 impl VmContext<'_> {
@@ -59,7 +59,8 @@ impl VmStack {
     }
 
     #[inline]
-    fn pop_i32(&mut self) -> i32 {
+    #[track_caller]
+    pub fn pop_i32(&mut self) -> i32 {
         i32::from_le_bytes(self.pop_bytes())
     }
 
@@ -99,24 +100,31 @@ impl<'mem> UntypedMemorySpan<'mem> {
 
     fn push_into(&self, stack: &mut VmStack, local_idx: u8, sig: &FuncSignature) {
         match sig.params[local_idx as usize] {
-            TypeKind::Func => {}
+            TypeKind::Func => unimplemented!(),
             TypeKind::F64 => stack.push_bytes(*self.read_param_raw::<8>(sig, local_idx as _)),
-            TypeKind::I32 => {}
+            TypeKind::I32 => stack.push_bytes(*self.read_param_raw::<4>(sig, local_idx as _))
         }
     }
 }
 
 pub fn evaluate<'code>(
     ctx: &mut VmContext<'code>,
+    module: &'code WasmModule<'code>,
     func_idx: usize,
-    funcs: &[FuncBody<'code>],
+    args: &[u8],
     x: &mut impl Context,
 ) {
+    ctx.call_stack.push(StackFrame::new(
+        &module,
+        func_idx,
+        args.to_vec(),
+    ));
+
     while let Some(frame) = ctx.call_stack.last_mut() {
         let params = UntypedMemorySpan {
             data: &frame.params,
         };
-        let current_func = &funcs[func_idx];
+        let current_func = &module.functions[frame.func_idx];
         let reader = &mut frame.reader;
         let pos = current_func.offset + reader.pos();
 
@@ -152,7 +160,7 @@ pub fn evaluate<'code>(
             }
             0x0b => {
                 // end
-                // unimplemented!();
+                continue;
             }
             0x10 => {
                 // call <func_idx>
@@ -161,16 +169,18 @@ pub fn evaluate<'code>(
                     .signature
                     .params
                     .iter()
-                    .flat_map(|t| match t {
-                        TypeKind::Func => todo!(),
-                        TypeKind::F64 => ctx.stack.pop_f64().to_le_bytes(),
-                        TypeKind::I32 => todo!(),
-                    })
-                    .collect();
+                    .fold(Vec::new(), |mut a, b| {
+                        match b {
+                            TypeKind::Func => todo!(),
+                            TypeKind::F64 => a.extend(ctx.stack.pop_f64().to_le_bytes()),
+                            TypeKind::I32 => a.extend(ctx.stack.pop_i32().to_le_bytes()),
+                        };
+                        a
+                    });
 
                 ctx.call_stack.push(StackFrame {
                     func_idx,
-                    reader: Reader::new(&current_func.code),
+                    reader: Reader::new(&module.functions[func_idx].code),
                     params,
                 });
             }
@@ -196,6 +206,12 @@ pub fn evaluate<'code>(
                 let a = ctx.stack.pop_i32();
                 ctx.stack.push_i32(a + b);
             }
+            0x6b => {
+                // i32.sub
+                let b = ctx.stack.pop_i32();
+                let a = ctx.stack.pop_i32();
+                ctx.stack.push_i32(a - b);
+            }
             0xa1 => {
                 // f64.sub
                 let b = ctx.stack.pop_f64();
@@ -211,4 +227,5 @@ pub fn evaluate<'code>(
             _ => unimplemented!("opcode {:02x?}", op),
         }
     }
+
 }

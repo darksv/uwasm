@@ -50,7 +50,7 @@ pub struct WasmModule<'code> {
 
 #[derive(Debug)]
 pub struct FuncBody<'code> {
-    name: &'code ByteStr,
+    name: Option<&'code ByteStr>,
     pub signature: FuncSignature,
     offset: usize,
     pub code: &'code [u8],
@@ -65,7 +65,7 @@ pub fn parse<'code>(
     reader.expect_bytes(b"\x00asm")?;
 
     let mut exported = Vec::new();
-    let mut functions = Vec::new();
+    let mut functions: Vec<FuncBody> = Vec::new();
     let mut signatures = Vec::new();
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
@@ -105,7 +105,8 @@ pub fn parse<'code>(
             SectionKind::Function => {
                 let num_funcs = reader.read_usize()?;
                 for _ in 0..num_funcs {
-                    let _sig_index = reader.read_usize()?;
+                    let sig_index = reader.read_usize()?;
+                    writeln!(ctx, "Function: {:?}", sig_index);
                 }
             }
             SectionKind::Export => {
@@ -179,6 +180,10 @@ pub fn parse<'code>(
                                 // i32.add
                                 writeln!(ctx, "i32.add");
                             }
+                            0x6b => {
+                                // i32.sub
+                                writeln!(ctx, "i32.sub");
+                            }
                             0x7c => {
                                 // f64
                                 writeln!(ctx, "f64");
@@ -195,7 +200,7 @@ pub fn parse<'code>(
                         }
                     }
                     functions.push(FuncBody {
-                        name: exported[functions.len()],
+                        name: None,
                         signature: signatures[functions.len()].clone(),
                         offset: marker.pos(),
                         code: marker.into_slice(&mut reader),
@@ -215,6 +220,7 @@ mod tests {
     use core::fmt::Arguments;
 
     struct MyCtx;
+
     impl Context for MyCtx {
         fn write_fmt(&mut self, _args: Arguments) {}
     }
@@ -229,12 +235,7 @@ mod tests {
             parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            ctx.call_stack.push(StackFrame::new(
-                &module,
-                0,
-                (i as f64).to_le_bytes().to_vec(),
-            ));
-            evaluate(&mut ctx, 0, &module.functions[..], &mut MyCtx);
+            evaluate(&mut ctx, &module, 0, &(i as f64).to_le_bytes(), &mut MyCtx);
 
             assert_eq!(ctx.stack.pop_f64() as u32, native_factorial(i));
         }
