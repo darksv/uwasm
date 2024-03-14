@@ -1,5 +1,5 @@
 use crate::parser::{Reader, TypeKind};
-use crate::{Context, FuncBody, FuncSignature, ParserError, WasmModule};
+use crate::{Context, FuncSignature, ParserError, WasmModule};
 use alloc::vec::Vec;
 
 pub struct VmContext<'code> {
@@ -32,6 +32,7 @@ impl<'code> StackFrame<'code> {
     }
 }
 
+#[derive(Debug)]
 pub struct VmStack {
     data: Vec<u8>,
 }
@@ -45,7 +46,7 @@ impl VmStack {
     }
 
     fn push_i32(&mut self, val: i32) {
-        self.data.extend(val.to_le_bytes());
+        self.push_bytes(val.to_le_bytes());
     }
 
     #[track_caller]
@@ -114,6 +115,8 @@ pub fn evaluate<'code>(
     args: &[u8],
     x: &mut impl Context,
 ) {
+    ctx.stack.data.clear();
+    ctx.call_stack.clear();
     ctx.call_stack.push(StackFrame::new(
         &module,
         func_idx,
@@ -137,6 +140,8 @@ pub fn evaluate<'code>(
             }
             Err(e) => panic!("other err: {e:?}"),
         };
+
+        //writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
 
         match op {
             0x04 => {
@@ -165,23 +170,18 @@ pub fn evaluate<'code>(
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
-                let params: Vec<_> = current_func
+                let len_params = current_func
                     .signature
                     .params
                     .iter()
-                    .fold(Vec::new(), |mut a, b| {
-                        match b {
-                            TypeKind::Func => todo!(),
-                            TypeKind::F64 => a.extend(ctx.stack.pop_f64().to_le_bytes()),
-                            TypeKind::I32 => a.extend(ctx.stack.pop_i32().to_le_bytes()),
-                        };
-                        a
-                    });
+                    .map(|t| t.len_bytes())
+                    .sum();
 
                 ctx.call_stack.push(StackFrame {
                     func_idx,
                     reader: Reader::new(&module.functions[func_idx].code),
-                    params,
+                    // TODO: remove this allocation?
+                    params: ctx.stack.slice_top(len_params).to_vec(),
                 });
             }
             0x20 => {
@@ -227,5 +227,4 @@ pub fn evaluate<'code>(
             _ => unimplemented!("opcode {:02x?}", op),
         }
     }
-
 }

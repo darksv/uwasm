@@ -216,7 +216,7 @@ pub fn parse<'code>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{evaluate, parse, Context, StackFrame, VmContext};
+    use crate::{evaluate, parse, Context, VmContext};
     use core::fmt::Arguments;
 
     struct MyCtx;
@@ -238,6 +238,19 @@ mod tests {
             evaluate(&mut ctx, &module, 0, &(i as f64).to_le_bytes(), &mut MyCtx);
 
             assert_eq!(ctx.stack.pop_f64() as u32, native_factorial(i));
+        }
+    }
+
+    #[test]
+    fn multivalue_sub() {
+        let module =
+            parse(include_bytes!("../../tests/multivalue.wasm"), &mut MyCtx).expect("parse module");
+        let mut ctx = VmContext::new();
+        for i in 0..10i32 {
+            for j in 10..20i32 {
+                evaluate(&mut ctx, &module, 1, &[i.to_le_bytes(), j.to_le_bytes()].concat(), &mut MyCtx);
+                assert_eq!(ctx.stack.pop_i32(), j - i);
+            }
         }
     }
 }
