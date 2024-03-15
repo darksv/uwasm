@@ -2,5 +2,6 @@
 resolver = "2"
 members = [
     "uwasm",
+    "uwasm-perf",
     "uwasm-test",
 ]
