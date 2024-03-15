@@ -1,6 +1,8 @@
+use alloc::fmt;
 use crate::parser::{Reader, TypeKind};
 use crate::{Context, FuncSignature, ParserError, WasmModule};
 use alloc::vec::Vec;
+use core::fmt::Formatter;
 
 pub struct VmContext<'code> {
     pub stack: VmStack,
@@ -10,7 +12,7 @@ pub struct VmContext<'code> {
 impl VmContext<'_> {
     pub fn new() -> Self {
         Self {
-            stack: VmStack { data: Vec::new() },
+            stack: VmStack::new(),
             call_stack: Vec::new(),
         }
     }
@@ -32,21 +34,33 @@ impl<'code> StackFrame<'code> {
     }
 }
 
-#[derive(Debug)]
 pub struct VmStack {
     data: Vec<u8>,
+    #[cfg(debug_assertions)]
+    types: Vec<TypeKind>,
 }
 
 impl VmStack {
-    fn push_bytes<const N: usize>(&mut self, data: [u8; N]) {
+    fn new() -> Self {
+        Self {
+            data: Vec::new(),
+            #[cfg(debug_assertions)]
+            types: Vec::new(),
+        }
+    }
+    pub(self) fn push_bytes<const N: usize>(&mut self, data: [u8; N]) {
         self.data.extend(data);
     }
     fn push_f64(&mut self, val: f64) {
         self.push_bytes(val.to_le_bytes());
+        #[cfg(debug_assertions)]
+        self.types.push(TypeKind::F64);
     }
 
     fn push_i32(&mut self, val: i32) {
         self.push_bytes(val.to_le_bytes());
+        #[cfg(debug_assertions)]
+        self.types.push(TypeKind::I32);
     }
 
     #[track_caller]
@@ -62,17 +76,46 @@ impl VmStack {
     #[inline]
     #[track_caller]
     pub fn pop_i32(&mut self) -> i32 {
+        #[cfg(debug_assertions)]
+        self.types.pop();
         i32::from_le_bytes(self.pop_bytes())
     }
 
     #[inline]
     #[track_caller]
     pub fn pop_f64(&mut self) -> f64 {
+        #[cfg(debug_assertions)]
+        self.types.pop();
         f64::from_le_bytes(self.pop_bytes())
     }
 
     fn slice_top(&self, n: usize) -> &'_ [u8] {
         &self.data[self.data.len() - n..]
+    }
+}
+
+impl fmt::Debug for VmStack {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        #[cfg(debug_assertions)]
+        {
+            let mut reader = Reader::new(&self.data);
+            let mut fmt = f.debug_list();
+            for tk in &self.types {
+                match tk {
+                    TypeKind::Func => todo!(),
+                    TypeKind::F64 => {
+                        fmt.entry(&reader.read_f64().unwrap());
+                    }
+                    TypeKind::I32 => {
+                        fmt.entry(&reader.read_u32().unwrap());
+                    }
+                }
+            }
+            fmt.finish()?;
+        }
+        #[cfg(not(debug_assertions))]
+        write!(f, "{:02X?}", &self.data)?;
+        Ok(())
     }
 }
 
