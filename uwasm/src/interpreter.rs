@@ -92,6 +92,18 @@ impl VmStack {
     fn slice_top(&self, n: usize) -> &'_ [u8] {
         &self.data[self.data.len() - n..]
     }
+
+    fn pop_top(&mut self, n: usize) {
+        #[cfg(debug_assertions)]
+        {
+            let mut remaining_bytes = n;
+            while remaining_bytes > 0 {
+                let ty = self.types.pop().expect("enough types");
+                remaining_bytes -= ty.len_bytes();
+            }
+        }
+        self.data.drain(self.data.len() - n..);
+    }
 }
 
 impl fmt::Debug for VmStack {
@@ -145,8 +157,8 @@ impl<'mem> UntypedMemorySpan<'mem> {
     fn push_into(&self, stack: &mut VmStack, local_idx: u8, sig: &FuncSignature) {
         match sig.params[local_idx as usize] {
             TypeKind::Func => unimplemented!(),
-            TypeKind::F64 => stack.push_bytes(*self.read_param_raw::<8>(sig, local_idx as _)),
-            TypeKind::I32 => stack.push_bytes(*self.read_param_raw::<4>(sig, local_idx as _))
+            TypeKind::F64 => stack.push_f64(f64::from_le_bytes(*self.read_param_raw(sig, local_idx as _))),
+            TypeKind::I32 => stack.push_i32(i32::from_le_bytes(*self.read_param_raw(sig, local_idx as _))),
         }
     }
 }
@@ -226,6 +238,7 @@ pub fn evaluate<'code>(
                     // TODO: remove this allocation?
                     params: ctx.stack.slice_top(len_params).to_vec(),
                 });
+                ctx.stack.pop_top(len_params);
             }
             0x20 => {
                 // local.get <local>
