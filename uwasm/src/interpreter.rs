@@ -145,12 +145,7 @@ impl<'mem> UntypedMemorySpan<'mem> {
         func_signature: &FuncSignature,
         idx: usize,
     ) -> &[u8; N] {
-        let offset: usize = func_signature
-            .params
-            .iter()
-            .take(idx)
-            .map(|t| t.len_bytes())
-            .sum();
+        let offset = func_signature.param_offsets[idx];
         self.data[offset..].first_chunk().unwrap()
     }
 

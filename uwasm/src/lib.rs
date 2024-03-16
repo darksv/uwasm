@@ -18,6 +18,7 @@ mod str;
 #[derive(Debug, Clone)]
 struct FuncSignature {
     params: Vec<TypeKind>,
+    param_offsets: Vec<usize>,
     results: Vec<TypeKind>,
 }
 
@@ -35,7 +36,14 @@ impl Item for FuncSignature {
             results.push(reader.read::<TypeKind>()?);
         }
 
-        Ok(FuncSignature { params, results })
+        let mut offsets = Vec::with_capacity(params.len());
+        let mut offset = 0;
+        for param in params.iter() {
+            offsets.push(offset);
+            offset += param.len_bytes();
+        }
+
+        Ok(FuncSignature { params, param_offsets: offsets, results })
     }
 }
 
