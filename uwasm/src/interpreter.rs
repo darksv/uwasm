@@ -7,6 +7,8 @@ use core::fmt::Formatter;
 pub struct VmContext<'code> {
     pub stack: VmStack,
     call_stack: Vec<StackFrame<'code>>,
+    // temporary store for locals - TODO: maybe reuse values from the stack
+    locals: Vec<u8>,
 }
 
 impl VmContext<'_> {
@@ -14,6 +16,7 @@ impl VmContext<'_> {
         Self {
             stack: VmStack::new(),
             call_stack: Vec::new(),
+            locals: Vec::new(),
         }
     }
 }
@@ -21,15 +24,15 @@ impl VmContext<'_> {
 pub struct StackFrame<'code> {
     func_idx: usize,
     reader: Reader<'code>,
-    params: Vec<u8>,
+    locals_offset: usize,
 }
 
 impl<'code> StackFrame<'code> {
-    pub fn new(module: &'code WasmModule, idx: usize, params: Vec<u8>) -> Self {
+    pub fn new(module: &'code WasmModule, idx: usize, locals_offset: usize) -> Self {
         Self {
             func_idx: idx,
             reader: Reader::new(&module.functions[idx].code),
-            params,
+            locals_offset,
         }
     }
 }
@@ -166,17 +169,15 @@ pub fn evaluate<'code>(
     x: &mut impl Context,
 ) {
     ctx.stack.data.clear();
+    ctx.locals.extend(args);
     ctx.call_stack.clear();
     ctx.call_stack.push(StackFrame::new(
         &module,
         func_idx,
-        args.to_vec(),
+        0,
     ));
 
     while let Some(frame) = ctx.call_stack.last_mut() {
-        let params = UntypedMemorySpan {
-            data: &frame.params,
-        };
         let current_func = &module.functions[frame.func_idx];
         let reader = &mut frame.reader;
         let pos = current_func.offset + reader.pos();
@@ -184,7 +185,9 @@ pub fn evaluate<'code>(
         let op = match reader.read_u8() {
             Ok(op) => op,
             Err(ParserError::EndOfStream { .. }) => {
-                let _ = ctx.call_stack.pop();
+                if let Some(frame) = ctx.call_stack.pop() {
+                    ctx.locals.drain(frame.locals_offset..);
+                }
                 // don't care if this is the last call - it will be taken care of before next iteration
                 continue;
             }
@@ -230,13 +233,17 @@ pub fn evaluate<'code>(
                 ctx.call_stack.push(StackFrame {
                     func_idx,
                     reader: Reader::new(&module.functions[func_idx].code),
-                    // TODO: remove this allocation?
-                    params: ctx.stack.slice_top(len_params).to_vec(),
+                    locals_offset: ctx.stack.data.len() - len_params,
                 });
+                ctx.locals.extend(&ctx.stack.data[ctx.stack.data.len() - len_params..]);
                 ctx.stack.pop_top(len_params);
             }
             0x20 => {
                 // local.get <local>
+                let params = UntypedMemorySpan {
+                    data: &ctx.locals[frame.locals_offset..],
+                };
+
                 let local_idx = reader.read_u8().unwrap();
                 params.push_into(&mut ctx.stack, local_idx, &current_func.signature);
             }
