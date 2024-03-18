@@ -44,6 +44,7 @@ pub struct VmStack {
 }
 
 impl VmStack {
+    #[inline]
     fn new() -> Self {
         Self {
             data: Vec::new(),
@@ -51,51 +52,53 @@ impl VmStack {
             types: Vec::new(),
         }
     }
+
+    #[inline]
     pub(self) fn push_bytes<const N: usize>(&mut self, data: [u8; N]) {
         self.data.extend(data);
     }
+
+    #[inline]
     fn push_f64(&mut self, val: f64) {
         self.push_bytes(val.to_le_bytes());
         #[cfg(debug_assertions)]
         self.types.push(TypeKind::F64);
     }
 
+    #[inline]
     fn push_i32(&mut self, val: i32) {
         self.push_bytes(val.to_le_bytes());
         #[cfg(debug_assertions)]
         self.types.push(TypeKind::I32);
     }
 
-    #[track_caller]
-    fn pop_bytes<const N: usize>(&mut self) -> [u8; N] {
-        let mut b = [0u8; N];
-        assert!(self.data.len() >= N);
-        for i in 0..N {
-            b[N - i - 1] = self.data.pop().unwrap();
-        }
-        b
+    #[inline]
+    fn pop_bytes<const N: usize>(&mut self) -> Option<[u8; N]> {
+        let (rest, &bytes) = self.data.split_last_chunk::<N>()?;
+        self.data.drain(rest.len()..);
+        Some(bytes)
     }
 
     #[inline]
-    #[track_caller]
-    pub fn pop_i32(&mut self) -> i32 {
+    pub fn pop_i32(&mut self) -> Option<i32> {
         #[cfg(debug_assertions)]
         self.types.pop();
-        i32::from_le_bytes(self.pop_bytes())
+        self.pop_bytes().map(i32::from_le_bytes)
     }
 
     #[inline]
-    #[track_caller]
-    pub fn pop_f64(&mut self) -> f64 {
+    pub fn pop_f64(&mut self) -> Option<f64> {
         #[cfg(debug_assertions)]
         self.types.pop();
-        f64::from_le_bytes(self.pop_bytes())
+        self.pop_bytes().map(f64::from_le_bytes)
     }
 
-    fn slice_top(&self, n: usize) -> &'_ [u8] {
-        &self.data[self.data.len() - n..]
+    #[inline]
+    fn slice_top(&self, n: usize) -> Option<&'_ [u8]> {
+        self.data.get(self.data.len() - n..)
     }
 
+    #[inline]
     fn pop_top(&mut self, n: usize) {
         #[cfg(debug_assertions)]
         {
@@ -202,7 +205,7 @@ pub fn evaluate<'code>(
                 let cond = match reader.read::<TypeKind>().unwrap() {
                     TypeKind::Func => todo!(),
                     TypeKind::F64 => {
-                        let x = ctx.stack.pop_f64();
+                        let x = ctx.stack.pop_f64().unwrap();
                         x != 0.0
                     }
                     TypeKind::I32 => todo!(),
@@ -254,32 +257,32 @@ pub fn evaluate<'code>(
             }
             0x63 => {
                 // f64.lt
-                let b = ctx.stack.pop_f64();
-                let a = ctx.stack.pop_f64();
+                let b = ctx.stack.pop_f64().unwrap();
+                let a = ctx.stack.pop_f64().unwrap();
                 ctx.stack.push_f64((a < b) as i32 as f64);
             }
             0x6a => {
                 // i32.add
-                let b = ctx.stack.pop_i32();
-                let a = ctx.stack.pop_i32();
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32(a + b);
             }
             0x6b => {
                 // i32.sub
-                let b = ctx.stack.pop_i32();
-                let a = ctx.stack.pop_i32();
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32(a - b);
             }
             0xa1 => {
                 // f64.sub
-                let b = ctx.stack.pop_f64();
-                let a = ctx.stack.pop_f64();
+                let b = ctx.stack.pop_f64().unwrap();
+                let a = ctx.stack.pop_f64().unwrap();
                 ctx.stack.push_f64(a - b);
             }
             0xa2 => {
                 // f64.mul
-                let b = ctx.stack.pop_f64();
-                let a = ctx.stack.pop_f64();
+                let b = ctx.stack.pop_f64().unwrap();
+                let a = ctx.stack.pop_f64().unwrap();
                 ctx.stack.push_f64(a * b);
             }
             _ => unimplemented!("opcode {:02x?}", op),

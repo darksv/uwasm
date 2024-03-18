@@ -1,7 +1,6 @@
 extern crate core;
 
 use std::fmt::Arguments;
-use std::io::Write;
 use uwasm::{evaluate, parse, Context, ParserError, VmContext};
 
 struct MyCtx;
@@ -30,7 +29,7 @@ fn main() -> Result<(), ParserError> {
     let started = std::time::Instant::now();
     for i in 0u32..n {
         evaluate(&mut ctx, &module, 0, &15.0f64.to_le_bytes(), &mut MyCtx);
-        assert_eq!(ctx.stack.pop_f64(), native_factorial(15) as f64);
+        assert_eq!(ctx.stack.pop_f64(), Some(native_factorial(15) as f64));
     }
     println!("time = {:?}/execution", started.elapsed() / n);
 
