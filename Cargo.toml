@@ -5,3 +5,6 @@ members = [
     "uwasm-perf",
     "uwasm-test",
 ]
+
+[profile.release]
+debug = true
