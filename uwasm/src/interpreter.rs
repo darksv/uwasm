@@ -54,25 +54,22 @@ impl VmStack {
     }
 
     #[inline]
-    pub(self) fn push_bytes<const N: usize>(&mut self, data: [u8; N]) {
+    pub(self) fn push_bytes<const N: usize>(&mut self, ty: TypeKind, data: [u8; N]) {
         self.data.extend(data);
+        #[cfg(debug_assertions)]
+        self.types.push(ty);
     }
 
     #[inline]
     fn push_f64(&mut self, val: f64) {
-        self.push_bytes(val.to_le_bytes());
-        #[cfg(debug_assertions)]
-        self.types.push(TypeKind::F64);
+        self.push_bytes(TypeKind::F64, val.to_le_bytes());
     }
 
     #[inline]
     fn push_i32(&mut self, val: i32) {
-        self.push_bytes(val.to_le_bytes());
-        #[cfg(debug_assertions)]
-        self.types.push(TypeKind::I32);
+        self.push_bytes(TypeKind::I32, val.to_le_bytes());
     }
 
-    #[inline]
     fn pop_bytes<const N: usize>(&mut self) -> Option<[u8; N]> {
         let (rest, &bytes) = self.data.split_last_chunk::<N>()?;
         self.data.drain(rest.len()..);
@@ -94,21 +91,16 @@ impl VmStack {
     }
 
     #[inline]
-    fn slice_top(&self, n: usize) -> Option<&'_ [u8]> {
-        self.data.get(self.data.len() - n..)
-    }
-
-    #[inline]
-    fn pop_top(&mut self, n: usize) {
+    fn pop_many(&mut self, n_bytes: usize) {
         #[cfg(debug_assertions)]
         {
-            let mut remaining_bytes = n;
+            let mut remaining_bytes = n_bytes;
             while remaining_bytes > 0 {
                 let ty = self.types.pop().expect("enough types");
                 remaining_bytes -= ty.len_bytes();
             }
         }
-        self.data.drain(self.data.len() - n..);
+        self.data.drain(self.data.len() - n_bytes..);
     }
 }
 
@@ -146,20 +138,22 @@ impl<'mem> UntypedMemorySpan<'mem> {
         Self { data }
     }
 
+    #[inline]
     fn read_param_raw<const N: usize>(
         &self,
         func_signature: &FuncSignature,
         idx: usize,
-    ) -> &[u8; N] {
-        let offset = func_signature.param_offsets[idx];
-        self.data[offset..].first_chunk().unwrap()
+    ) -> Option<&[u8; N]> {
+        let offset = func_signature.param_offsets.get(idx).copied()?;
+        self.data.get(offset..)?.first_chunk()
     }
 
-    fn push_into(&self, stack: &mut VmStack, local_idx: u8, sig: &FuncSignature) {
-        match sig.params[local_idx as usize] {
+    #[inline]
+    fn push_into(&self, stack: &mut VmStack, local_idx: usize, sig: &FuncSignature) {
+        match sig.params[local_idx] {
             TypeKind::Func => unimplemented!(),
-            TypeKind::F64 => stack.push_f64(f64::from_le_bytes(*self.read_param_raw(sig, local_idx as _))),
-            TypeKind::I32 => stack.push_i32(i32::from_le_bytes(*self.read_param_raw(sig, local_idx as _))),
+            TypeKind::F64 => stack.push_bytes(TypeKind::F64, *self.read_param_raw::<8>(sig, local_idx).unwrap()),
+            TypeKind::I32 => stack.push_bytes(TypeKind::I32, *self.read_param_raw::<4>(sig, local_idx).unwrap()),
         }
     }
 }
@@ -226,7 +220,7 @@ pub fn evaluate<'code>(
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
-                let len_params = current_func
+                let len_locals = current_func
                     .signature
                     .params
                     .iter()
@@ -236,10 +230,10 @@ pub fn evaluate<'code>(
                 ctx.call_stack.push(StackFrame {
                     func_idx,
                     reader: Reader::new(&module.functions[func_idx].code),
-                    locals_offset: ctx.stack.data.len() - len_params,
+                    locals_offset: ctx.stack.data.len() - len_locals,
                 });
-                ctx.locals.extend(&ctx.stack.data[ctx.stack.data.len() - len_params..]);
-                ctx.stack.pop_top(len_params);
+                ctx.locals.extend(&ctx.stack.data[ctx.stack.data.len() - len_locals..]);
+                ctx.stack.pop_many(len_locals);
             }
             0x20 => {
                 // local.get <local>
@@ -248,7 +242,7 @@ pub fn evaluate<'code>(
                 };
 
                 let local_idx = reader.read_u8().unwrap();
-                params.push_into(&mut ctx.stack, local_idx, &current_func.signature);
+                params.push_into(&mut ctx.stack, local_idx as usize, &current_func.signature);
             }
             0x44 => {
                 // f64.const <literal>
