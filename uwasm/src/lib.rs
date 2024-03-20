@@ -117,8 +117,36 @@ pub fn parse<'code>(
                     writeln!(ctx, "Function: {:?}", sig_index);
                 }
             }
+            SectionKind::Table => {
+                let num_tables = reader.read_usize()?;
+                for _ in 0..num_tables {
+                    let kind = reader.read::<TypeKind>()?;
+                    let limits_flags = reader.read_u8()?;
+                    let limits_initial = reader.read_u8()?;
+                    let limits_max = reader.read_u8()?;
+                }
+            }
+            SectionKind::Memory => {
+                writeln!(ctx, "Memory section");
+                let num_memories = reader.read_usize()?;
+                for _ in 0..num_memories {
+                    let limits_flags = reader.read_u8()?;
+                    let limits_initial = reader.read_u8()?;
+                }
+            }
+            SectionKind::Global => {
+                writeln!(ctx, "Global section");
+                let num_globals = reader.read_usize()?;
+                for _ in 0..num_globals {
+                    let kind = reader.read::<TypeKind>()?;
+                    let global_mut = reader.read_u8()?;
+                    let _ = reader.read_bytes::<3>()?; // FIXME
+                }
+            }
             SectionKind::Export => {
+                writeln!(ctx, "Export section");
                 let num_exports = reader.read_usize()?;
+                writeln!(ctx, "{num_exports}");
                 for _ in 0..num_exports {
                     let name = reader.read_str()?;
                     let export_kind = reader.read_u8()?;
@@ -129,6 +157,9 @@ pub fn parse<'code>(
                     );
                     exported.push(name);
                 }
+            }
+            SectionKind::Elem => {
+                let _ = reader.read_bytes::<7>()?; // FIXME
             }
             SectionKind::Code => {
                 let num_funcs = reader.read_usize()?;
@@ -143,6 +174,10 @@ pub fn parse<'code>(
                         let pos = reader.pos();
                         let op = reader.read_u8()?;
                         match op {
+                            0x02 => {
+                                // block
+                                let kind = reader.read::<TypeKind>()?;
+                            }
                             0x04 => {
                                 // if
                                 writeln!(ctx, "if");
@@ -165,10 +200,18 @@ pub fn parse<'code>(
                                     break;
                                 }
                             }
+                            0x0c => {
+                                // br
+                                let break_depth = reader.read_u8()?;
+                            }
                             0x10 => {
                                 // call <func_idx>
                                 let func_idx = reader.read_usize()?;
                                 writeln!(ctx, "call {}", func_idx);
+                            }
+                            0x1a => {
+                                // drop
+                                writeln!(ctx, "drop");
                             }
                             0x20 => {
                                 // local.get <local>
@@ -191,6 +234,10 @@ pub fn parse<'code>(
                             0x6b => {
                                 // i32.sub
                                 writeln!(ctx, "i32.sub");
+                            }
+                            0x68 => {
+                                // i32.ctz
+                                writeln!(ctx, "i32.ctz");
                             }
                             0x7c => {
                                 // f64

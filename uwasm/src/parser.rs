@@ -64,6 +64,11 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
+    pub(crate) fn read_u64(&mut self) -> Result<u64, ParserError> {
+        self.read_bytes::<8>().map(|b| u64::from_le_bytes(*b))
+    }
+
+    #[inline]
     pub(crate) fn read_usize(&mut self) -> Result<usize, ParserError> {
         let mut result: usize = 0;
         let mut shift = 0;
@@ -79,11 +84,17 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
+    pub(crate) fn read_f32(&mut self) -> Result<f32, ParserError> {
+        self.read_bytes().map(|b| f32::from_le_bytes(*b))
+    }
+
+    #[inline]
     pub(crate) fn read_f64(&mut self) -> Result<f64, ParserError> {
         self.read_bytes().map(|b| f64::from_le_bytes(*b))
     }
 
     #[inline]
+    #[track_caller]
     pub(crate) fn read<T: Item>(&mut self) -> Result<T, ParserError> {
         T::read(self, self.pos)
     }
@@ -129,17 +140,26 @@ pub(crate) enum SectionKind {
     Custom = 0x00,
     Type = 0x01,
     Function = 0x03,
+    Table = 0x04,
+    Memory = 0x05,
+    Global = 0x06,
     Export = 0x07,
+    Elem = 0x09,
     Code = 0x0A,
 }
 
 impl Item for SectionKind {
+    #[track_caller]
     fn read(reader: &mut Reader, offset: usize) -> Result<Self, ParserError> {
         match reader.read_u8()? {
             0x00 => Ok(SectionKind::Custom),
             0x01 => Ok(SectionKind::Type),
             0x03 => Ok(SectionKind::Function),
+            0x04 => Ok(SectionKind::Table),
+            0x05 => Ok(SectionKind::Memory),
+            0x06 => Ok(SectionKind::Global),
             0x07 => Ok(SectionKind::Export),
+            0x09 => Ok(SectionKind::Elem),
             0x0A => Ok(SectionKind::Code),
             _ => Err(ParserError::InvalidValue { offset }),
         }
@@ -149,17 +169,25 @@ impl Item for SectionKind {
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub(crate) enum TypeKind {
+    Void = 0x40,
     Func = 0x60,
-    F64 = 0x7c,
+    FuncRef = 0x70,
+    F64 = 0x7C,
+    F32 = 0x7D,
+    I64 = 0x7E,
     I32 = 0x7F,
 }
 
 impl TypeKind {
     pub(crate) fn len_bytes(&self) -> usize {
         match *self {
+            TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
+            TypeKind::FuncRef => todo!(),
             TypeKind::F64 => 8,
+            TypeKind::I64 => 8,
             TypeKind::I32 => 4,
+            TypeKind::F32 => 4,
         }
     }
 }
@@ -167,9 +195,14 @@ impl TypeKind {
 impl Item for TypeKind {
     fn read(reader: &mut Reader, offset: usize) -> Result<Self, ParserError> {
         match reader.read_u8()? {
+            0x40 => Ok(TypeKind::Void),
             0x60 => Ok(TypeKind::Func),
+            0x70 => Ok(TypeKind::FuncRef),
             0x7C => Ok(TypeKind::F64),
+            0x7D => Ok(TypeKind::F32),
+            0x7E => Ok(TypeKind::I64),
             0x7F => Ok(TypeKind::I32),
+            other => panic!("{other:02X}"),
             _ => Err(ParserError::InvalidValue { offset }),
         }
     }

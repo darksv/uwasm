@@ -84,6 +84,13 @@ impl VmStack {
     }
 
     #[inline]
+    pub fn pop_f32(&mut self) -> Option<f32> {
+        #[cfg(debug_assertions)]
+        self.types.pop();
+        self.pop_bytes().map(f32::from_le_bytes)
+    }
+
+    #[inline]
     pub fn pop_f64(&mut self) -> Option<f64> {
         #[cfg(debug_assertions)]
         self.types.pop();
@@ -112,12 +119,20 @@ impl fmt::Debug for VmStack {
             let mut fmt = f.debug_list();
             for tk in &self.types {
                 match tk {
+                    TypeKind::Void => todo!(),
                     TypeKind::Func => todo!(),
+                    TypeKind::FuncRef => todo!(),
+                    TypeKind::F32 => {
+                        fmt.entry(&reader.read_f32().unwrap());
+                    }
                     TypeKind::F64 => {
                         fmt.entry(&reader.read_f64().unwrap());
                     }
                     TypeKind::I32 => {
                         fmt.entry(&reader.read_u32().unwrap());
+                    }
+                    TypeKind::I64 => {
+                        fmt.entry(&reader.read_u64().unwrap());
                     }
                 }
             }
@@ -151,9 +166,13 @@ impl<'mem> UntypedMemorySpan<'mem> {
     #[inline]
     fn push_into(&self, stack: &mut VmStack, local_idx: usize, sig: &FuncSignature) {
         match sig.params[local_idx] {
+            TypeKind::Void => unimplemented!(),
             TypeKind::Func => unimplemented!(),
+            TypeKind::FuncRef => unimplemented!(),
+            TypeKind::F32 => stack.push_bytes(TypeKind::F32, *self.read_param_raw::<4>(sig, local_idx).unwrap()),
             TypeKind::F64 => stack.push_bytes(TypeKind::F64, *self.read_param_raw::<8>(sig, local_idx).unwrap()),
             TypeKind::I32 => stack.push_bytes(TypeKind::I32, *self.read_param_raw::<4>(sig, local_idx).unwrap()),
+            TypeKind::I64 => stack.push_bytes(TypeKind::I64, *self.read_param_raw::<8>(sig, local_idx).unwrap()),
         }
     }
 }
@@ -197,12 +216,19 @@ pub fn evaluate<'code>(
             0x04 => {
                 // if
                 let cond = match reader.read::<TypeKind>().unwrap() {
+                    TypeKind::Void => todo!(),
                     TypeKind::Func => todo!(),
+                    TypeKind::FuncRef => todo!(),
+                    TypeKind::F32 => {
+                        let x = ctx.stack.pop_f32().unwrap();
+                        x != 0.0
+                    }
                     TypeKind::F64 => {
                         let x = ctx.stack.pop_f64().unwrap();
                         x != 0.0
-                    }
+                    },
                     TypeKind::I32 => todo!(),
+                    TypeKind::I64 => todo!(),
                 };
 
                 if !cond {
