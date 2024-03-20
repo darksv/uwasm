@@ -65,8 +65,17 @@ impl<'code> Reader<'code> {
 
     #[inline]
     pub(crate) fn read_usize(&mut self) -> Result<usize, ParserError> {
-        // TODO: support LEB128 encoding
-        self.read_u8().map(|b| b as usize)
+        let mut result: usize = 0;
+        let mut shift = 0;
+        loop {
+            let mut byte = self.read_u8()?;
+            result |= usize::from(byte & 0b0111_1111) << shift;
+            if byte & 0b1000_0000 == 0 {
+                break;
+            }
+            shift += 7;
+        }
+        Ok(result)
     }
 
     #[inline]
