@@ -168,9 +168,9 @@ impl<'mem> UntypedMemorySpan<'mem> {
     #[inline]
     fn push_into(&self, stack: &mut VmStack, local_idx: usize, sig: &FuncSignature) {
         match sig.params[local_idx] {
-            TypeKind::Void => unimplemented!(),
-            TypeKind::Func => unimplemented!(),
-            TypeKind::FuncRef => unimplemented!(),
+            TypeKind::Void => todo!(),
+            TypeKind::Func => todo!(),
+            TypeKind::FuncRef => todo!(),
             TypeKind::F32 => stack.push_bytes(TypeKind::F32, *self.read_param_raw::<4>(sig, local_idx).unwrap()),
             TypeKind::F64 => stack.push_bytes(TypeKind::F64, *self.read_param_raw::<8>(sig, local_idx).unwrap()),
             TypeKind::I32 => stack.push_bytes(TypeKind::I32, *self.read_param_raw::<4>(sig, local_idx).unwrap()),
@@ -308,7 +308,7 @@ pub fn evaluate<'code>(
                 let a = ctx.stack.pop_f64().unwrap();
                 ctx.stack.push_f64(a * b);
             }
-            _ => unimplemented!("opcode {:02x?}", op),
+            _ => todo!("opcode {:02x?}", op),
         }
     }
 }

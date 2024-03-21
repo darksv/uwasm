@@ -109,7 +109,7 @@ pub fn parse<'code>(
                             writeln!(ctx, "Signature: {:?}", sig);
                             signatures.push(sig);
                         }
-                        other => unimplemented!("{:?}", other),
+                        other => todo!("{:?}", other),
                     }
                 }
             }
@@ -254,7 +254,7 @@ pub fn parse<'code>(
                                 // f64.mul
                                 writeln!(ctx, "f64.mul");
                             }
-                            _ => unimplemented!("opcode {op:02x?} @ {pos:02x}"),
+                            _ => todo!("opcode {op:02x?} @ {pos:02x}"),
                         }
                     }
                     functions.push(FuncBody {
