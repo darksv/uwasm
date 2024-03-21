@@ -163,7 +163,7 @@ impl Item for SectionKind {
             0x07 => Ok(SectionKind::Export),
             0x09 => Ok(SectionKind::Elem),
             0x0A => Ok(SectionKind::Code),
-            _ => Err(ParserError::InvalidValue { offset }),
+            other => Err(ParserError::InvalidValue { offset, found: other }),
         }
     }
 }
@@ -204,8 +204,7 @@ impl Item for TypeKind {
             0x7D => Ok(TypeKind::F32),
             0x7E => Ok(TypeKind::I64),
             0x7F => Ok(TypeKind::I32),
-            other => panic!("{other:02X}"),
-            _ => Err(ParserError::InvalidValue { offset }),
+            other => Err(ParserError::InvalidValue { offset, found: other }),
         }
     }
 }
@@ -213,7 +212,7 @@ impl Item for TypeKind {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ParserError {
     EndOfStream { offset: usize },
-    InvalidValue { offset: usize },
+    InvalidValue { offset: usize, found: u8 },
     UnexpectedBytes { offset: usize },
     NotEnoughBytes { offset: usize },
 }
