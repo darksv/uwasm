@@ -19,6 +19,7 @@ mod str;
 struct FuncSignature {
     params: Vec<TypeKind>,
     param_offsets: Vec<usize>,
+    #[allow(unused)]
     results: Vec<TypeKind>,
 }
 
@@ -58,13 +59,15 @@ pub struct WasmModule<'code> {
 
 #[derive(Debug)]
 pub struct FuncBody<'code> {
+    #[allow(unused)]
     name: Option<&'code ByteStr>,
-    pub signature: FuncSignature,
+    signature: FuncSignature,
     offset: usize,
     pub code: &'code [u8],
     jump_targets: BTreeMap<usize, usize>, // if location => else location
 }
 
+#[allow(unused)]
 pub fn parse<'code>(
     code: &'code [u8],
     ctx: &mut impl Context,

@@ -58,6 +58,8 @@ impl VmStack {
         self.data.extend(data);
         #[cfg(debug_assertions)]
         self.types.push(ty);
+        #[cfg(not(debug_assertions))]
+        let _ = ty;
     }
 
     #[inline]
@@ -182,6 +184,7 @@ pub fn evaluate<'code>(
     module: &'code WasmModule<'code>,
     func_idx: usize,
     args: &[u8],
+    #[allow(unused)]
     x: &mut impl Context,
 ) {
     ctx.stack.data.clear();

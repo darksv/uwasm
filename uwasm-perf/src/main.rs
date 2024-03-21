@@ -6,7 +6,7 @@ use uwasm::{evaluate, parse, Context, ParserError, VmContext};
 struct MyCtx;
 
 impl Context for MyCtx {
-    fn write_fmt(&mut self, args: Arguments) {
+    fn write_fmt(&mut self, #[allow(unused)] args: Arguments) {
         // std::io::stdout().write_fmt(args).unwrap()
     }
 }
@@ -27,7 +27,7 @@ fn main() -> Result<(), ParserError> {
     let n = 1_000_000;
 
     let started = std::time::Instant::now();
-    for i in 0u32..n {
+    for _ in 0u32..n {
         evaluate(&mut ctx, &module, 0, &15.0f64.to_le_bytes(), &mut MyCtx);
         assert_eq!(ctx.stack.pop_f64(), Some(native_factorial(15) as f64));
     }

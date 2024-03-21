@@ -64,6 +64,7 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
+    #[allow(unused)]
     pub(crate) fn read_u64(&mut self) -> Result<u64, ParserError> {
         self.read_bytes::<8>().map(|b| u64::from_le_bytes(*b))
     }
@@ -73,7 +74,7 @@ impl<'code> Reader<'code> {
         let mut result: usize = 0;
         let mut shift = 0;
         loop {
-            let mut byte = self.read_u8()?;
+            let byte = self.read_u8()?;
             result |= usize::from(byte & 0b0111_1111) << shift;
             if byte & 0b1000_0000 == 0 {
                 break;
@@ -84,6 +85,7 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
+    #[allow(unused)]
     pub(crate) fn read_f32(&mut self) -> Result<f32, ParserError> {
         self.read_bytes().map(|b| f32::from_le_bytes(*b))
     }
