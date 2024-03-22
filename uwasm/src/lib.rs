@@ -72,7 +72,7 @@ pub fn parse<'code>(
     code: &'code [u8],
     ctx: &mut impl Context,
 ) -> Result<WasmModule<'code>, ParserError> {
-    let mut reader = Reader::new(&code);
+    let mut reader = Reader::new(code);
     reader.expect_bytes(b"\x00asm")?;
 
     let mut exported = Vec::new();

@@ -31,7 +31,7 @@ impl<'code> StackFrame<'code> {
     pub fn new(module: &'code WasmModule, idx: usize, locals_offset: usize) -> Self {
         Self {
             func_idx: idx,
-            reader: Reader::new(&module.functions[idx].code),
+            reader: Reader::new(module.functions[idx].code),
             locals_offset,
         }
     }
@@ -191,7 +191,7 @@ pub fn evaluate<'code>(
     ctx.locals.extend(args);
     ctx.call_stack.clear();
     ctx.call_stack.push(StackFrame::new(
-        &module,
+        module,
         func_idx,
         0,
     ));
@@ -258,7 +258,7 @@ pub fn evaluate<'code>(
 
                 ctx.call_stack.push(StackFrame {
                     func_idx,
-                    reader: Reader::new(&module.functions[func_idx].code),
+                    reader: Reader::new(module.functions[func_idx].code),
                     locals_offset: ctx.stack.data.len() - len_locals,
                 });
                 ctx.locals.extend(&ctx.stack.data[ctx.stack.data.len() - len_locals..]);
