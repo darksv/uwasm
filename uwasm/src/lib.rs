@@ -172,6 +172,7 @@ pub fn parse<'code>(
                     let marker = reader.marker();
                     let mut last_if = None;
                     let mut last_else = None;
+                    let mut last_br = None;
                     let mut jump_targets = BTreeMap::new();
                     loop {
                         let pos = reader.pos();
@@ -198,6 +199,9 @@ pub fn parse<'code>(
                                 if let Some(le) = last_else {
                                     jump_targets.insert(le, pos + 1 - marker.pos());
                                     last_else = None;
+                                } else if let Some(le) = last_br {
+                                    jump_targets.insert(le, pos + 1 - marker.pos());
+                                    last_br = None;
                                 } else {
                                     // end of function
                                     break;
@@ -206,6 +210,7 @@ pub fn parse<'code>(
                             0x0c => {
                                 // br
                                 let break_depth = reader.read_u8()?;
+                                last_br = Some(pos);
                             }
                             0x10 => {
                                 // call <func_idx>
@@ -220,6 +225,11 @@ pub fn parse<'code>(
                                 // local.get <local>
                                 let local_idx = reader.read_u8()?;
                                 writeln!(ctx, "local.get {}", local_idx);
+                            }
+                            0x41 => {
+                                // i32.const <literal>
+                                let val = reader.read_u32()?;
+                                writeln!(ctx, "i32.const {}", val);
                             }
                             0x44 => {
                                 // f64.const <literal>
@@ -242,9 +252,29 @@ pub fn parse<'code>(
                                 // i32.ctz
                                 writeln!(ctx, "i32.ctz");
                             }
+                            0x7a => {
+                                // i64.ctz
+                                writeln!(ctx, "i64.ctz");
+                            }
                             0x7c => {
                                 // f64
                                 writeln!(ctx, "f64");
+                            }
+                            0x8c => {
+                                // f32.neg
+                                writeln!(ctx, "f32.neg");
+                            }
+                            0x92 => {
+                                // f32.add
+                                writeln!(ctx, "f32.add");
+                            }
+                            0x9a => {
+                                // f64.neg
+                                writeln!(ctx, "f64.neg");
+                            }
+                            0xa0 => {
+                                // f64.add
+                                writeln!(ctx, "f64.add");
                             }
                             0xa1 => {
                                 // f64.sub
@@ -254,7 +284,10 @@ pub fn parse<'code>(
                                 // f64.mul
                                 writeln!(ctx, "f64.mul");
                             }
-                            _ => todo!("opcode {op:02x?} @ {pos:02x}"),
+                            _ => {
+                                writeln!(ctx, "{:?}", &reader);
+                                todo!("opcode {op:02x?} @ {pos:02x}")
+                            },
                         }
                     }
                     functions.push(FuncBody {

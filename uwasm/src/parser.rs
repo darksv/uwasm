@@ -1,8 +1,15 @@
+use core::fmt;
 use crate::str::ByteStr;
 
 pub(crate) struct Reader<'code> {
     data: &'code [u8],
     pos: usize,
+}
+
+impl fmt::Debug for Reader<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:02X?}", &self.data[self.pos - 2..][..100])
+    }
 }
 
 impl<'code> Reader<'code> {
