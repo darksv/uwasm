@@ -78,6 +78,7 @@ pub fn parse<'code>(
     let mut exported = Vec::new();
     let mut functions: Vec<FuncBody> = Vec::new();
     let mut signatures = Vec::new();
+    let mut func_signatures = Vec::new();
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -118,6 +119,7 @@ pub fn parse<'code>(
                 for _ in 0..num_funcs {
                     let sig_index = reader.read_usize()?;
                     writeln!(ctx, "Function: {:?}", sig_index);
+                    func_signatures.push(sig_index);
                 }
             }
             SectionKind::Table => {
@@ -290,9 +292,10 @@ pub fn parse<'code>(
                             },
                         }
                     }
+
                     functions.push(FuncBody {
                         name: None,
-                        signature: signatures[functions.len()].clone(),
+                        signature: signatures[func_signatures[functions.len()]].clone(),
                         offset: marker.pos(),
                         code: marker.into_slice(&mut reader),
                         jump_targets,
