@@ -174,15 +174,21 @@ pub fn parse<'code>(
                     let marker = reader.marker();
                     let mut last_if = None;
                     let mut last_else = None;
-                    let mut last_br = None;
+                    let mut last_block = None;
+
                     let mut jump_targets = BTreeMap::new();
                     loop {
                         let pos = reader.pos();
                         let op = reader.read_u8()?;
                         match op {
+                            0x01 => {
+                                // nop
+                                writeln!(ctx, "nop");
+                            }
                             0x02 => {
                                 // block
-                                let kind = reader.read::<TypeKind>()?;
+                                let block_type = reader.read_u8()?;
+                                last_block = Some(pos);
                             }
                             0x04 => {
                                 // if
@@ -198,13 +204,12 @@ pub fn parse<'code>(
                             0x0b => {
                                 // end
                                 writeln!(ctx, "end");
-                                if let Some(le) = last_else {
+                                if let Some(le) = last_else.take() {
                                     jump_targets.insert(le, pos + 1 - marker.pos());
-                                    last_else = None;
-                                } else if let Some(le) = last_br {
+                                } else if let Some(le) = last_block.take() {
                                     jump_targets.insert(le, pos + 1 - marker.pos());
-                                    last_br = None;
                                 } else {
+                                    writeln!(ctx, "// end of function");
                                     // end of function
                                     break;
                                 }
@@ -212,7 +217,6 @@ pub fn parse<'code>(
                             0x0c => {
                                 // br
                                 let break_depth = reader.read_u8()?;
-                                last_br = Some(pos);
                             }
                             0x10 => {
                                 // call <func_idx>
@@ -232,6 +236,16 @@ pub fn parse<'code>(
                                 // i32.const <literal>
                                 let val = reader.read_u32()?;
                                 writeln!(ctx, "i32.const {}", val);
+                            }
+                            0x42 => {
+                                // i64.const <literal>
+                                let val = reader.read_u64()?;
+                                writeln!(ctx, "i64.const {}", val);
+                            }
+                            0x43 => {
+                                // f32.const <literal>
+                                let val = reader.read_f32()?;
+                                writeln!(ctx, "f32.const {}", val);
                             }
                             0x44 => {
                                 // f64.const <literal>
