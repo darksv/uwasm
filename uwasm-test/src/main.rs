@@ -21,7 +21,7 @@ fn main() -> Result<(), ParserError> {
     let module = parse(&content, &mut MyCtx)?;
     let mut ctx = VmContext::new();
     for i in 0..10 {
-        evaluate(&mut ctx, &module, 1, &[100u32.to_le_bytes(), (i as u32).to_le_bytes()].concat(), &mut MyCtx);
+        evaluate(&mut ctx, &module, 0, &[100u64.to_le_bytes(), (i as u64).to_le_bytes()].concat(), &mut MyCtx);
         dbg!(ctx.stack.pop_i32());
     }
 

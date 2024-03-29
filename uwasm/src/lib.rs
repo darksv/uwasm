@@ -88,6 +88,8 @@ pub fn parse<'code>(
                 let name = reader.read_str()?;
                 writeln!(ctx, "Found custom section: {}", name);
 
+                break; // FIXME
+
                 let _local_name_type = reader.read_u8()?;
                 let _subsection_size = reader.read_usize()?;
                 let num_funcs = reader.read_u8()?;
@@ -145,7 +147,7 @@ pub fn parse<'code>(
                 for _ in 0..num_globals {
                     let kind = reader.read::<TypeKind>()?;
                     let global_mut = reader.read_u8()?;
-                    let _ = reader.read_bytes::<3>()?; // FIXME
+                    let _ = reader.read_delimited(0x0B); // FIXME
                 }
             }
             SectionKind::Export => {
@@ -175,6 +177,7 @@ pub fn parse<'code>(
                     let mut last_if = None;
                     let mut last_else = None;
                     let mut last_block = None;
+                    let mut last_loop = None;
 
                     let mut jump_targets = BTreeMap::new();
                     loop {
@@ -189,6 +192,11 @@ pub fn parse<'code>(
                                 // block
                                 let block_type = reader.read_u8()?;
                                 last_block = Some(pos);
+                            }
+                            0x03 => {
+                                // loop
+                                let loop_type = reader.read_u8()?;
+                                last_loop = Some(pos);
                             }
                             0x04 => {
                                 // if
@@ -208,6 +216,8 @@ pub fn parse<'code>(
                                     jump_targets.insert(le, pos + 1 - marker.pos());
                                 } else if let Some(le) = last_block.take() {
                                     jump_targets.insert(le, pos + 1 - marker.pos());
+                                } else if let Some(le) = last_loop.take() {
+                                    jump_targets.insert(le, pos + 1 - marker.pos());
                                 } else {
                                     writeln!(ctx, "// end of function");
                                     // end of function
@@ -216,6 +226,10 @@ pub fn parse<'code>(
                             }
                             0x0c => {
                                 // br
+                                let break_depth = reader.read_u8()?;
+                            }
+                            0x0d => {
+                                // br_if
                                 let break_depth = reader.read_u8()?;
                             }
                             0x10 => {
@@ -231,6 +245,11 @@ pub fn parse<'code>(
                                 // local.get <local>
                                 let local_idx = reader.read_u8()?;
                                 writeln!(ctx, "local.get {}", local_idx);
+                            }
+                            0x21 => {
+                                // local.get <local>
+                                let local_idx = reader.read_u8()?;
+                                writeln!(ctx, "local.set {}", local_idx);
                             }
                             0x41 => {
                                 // i32.const <literal>
@@ -252,6 +271,10 @@ pub fn parse<'code>(
                                 let val = reader.read_f64()?;
                                 writeln!(ctx, "f64.const {}", val);
                             }
+                            0x45 => {
+                                // i32.eqz
+                                writeln!(ctx, "i32.eqz");
+                            }
                             0x63 => {
                                 // f64.lt
                                 writeln!(ctx, "f64.lt");
@@ -263,6 +286,10 @@ pub fn parse<'code>(
                             0x6b => {
                                 // i32.sub
                                 writeln!(ctx, "i32.sub");
+                            }
+                            0x6c => {
+                                // i32.mul
+                                writeln!(ctx, "i32.mul");
                             }
                             0x68 => {
                                 // i32.ctz
