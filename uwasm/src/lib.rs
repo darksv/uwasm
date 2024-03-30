@@ -173,6 +173,10 @@ pub fn parse<'code>(
                 for _ in 0..num_funcs {
                     let body_len = reader.read_usize()?;
                     let locals_num = reader.read_usize()?;
+                    for _ in 0..locals_num {
+                        let n = reader.read_usize()?;
+                        let ty = reader.read::<TypeKind>()?;
+                    }
                     let marker = reader.marker();
                     let mut last_if = None;
                     let mut last_else = None;

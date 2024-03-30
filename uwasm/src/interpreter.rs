@@ -25,6 +25,7 @@ pub struct StackFrame<'code> {
     func_idx: usize,
     reader: Reader<'code>,
     locals_offset: usize,
+    curr_loop_start: Option<usize>,
 }
 
 impl<'code> StackFrame<'code> {
@@ -33,6 +34,7 @@ impl<'code> StackFrame<'code> {
             func_idx: idx,
             reader: Reader::new(module.functions[idx].code),
             locals_offset,
+            curr_loop_start: None,
         }
     }
 }
@@ -213,9 +215,19 @@ pub fn evaluate<'code>(
             Err(e) => panic!("other err: {e:?}"),
         };
 
-        //writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
+        writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
 
         match op {
+            0x02 => {
+                // block
+                let ty = reader.read_usize().unwrap();
+                frame.curr_loop_start = Some(pos);
+            }
+            0x03 => {
+                // loop
+                let ty = reader.read_usize().unwrap();
+                frame.curr_loop_start = Some(pos);
+            }
             0x04 => {
                 // if
                 let cond = match reader.read::<TypeKind>().unwrap() {
@@ -246,6 +258,11 @@ pub fn evaluate<'code>(
                 // end
                 continue;
             }
+            0x0d => {
+                // br_if
+                let depth = reader.read_usize().unwrap();
+                // todo!();
+            }
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
@@ -260,6 +277,7 @@ pub fn evaluate<'code>(
                     func_idx,
                     reader: Reader::new(module.functions[func_idx].code),
                     locals_offset: ctx.stack.data.len() - len_locals,
+                    curr_loop_start: None,
                 });
                 ctx.locals.extend(&ctx.stack.data[ctx.stack.data.len() - len_locals..]);
                 ctx.stack.pop_many(len_locals);
@@ -273,10 +291,24 @@ pub fn evaluate<'code>(
                 let local_idx = reader.read_u8().unwrap();
                 params.push_into(&mut ctx.stack, local_idx as usize, &current_func.signature);
             }
+            0x21 => {
+                // local.set <local>
+                todo!();
+            }
+            0x41 => {
+                // i32.const <literal>
+                let val = reader.read_u32().unwrap();
+                ctx.stack.push_i32(val as i32);
+            }
             0x44 => {
                 // f64.const <literal>
                 let val = reader.read_f64().unwrap();
                 ctx.stack.push_f64(val);
+            }
+            0x45 => {
+                // i32.eqz
+                let val = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32((val != 0) as i32);
             }
             0x63 => {
                 // f64.lt
