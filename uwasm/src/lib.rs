@@ -18,7 +18,6 @@ mod str;
 #[derive(Debug, Clone)]
 struct FuncSignature {
     params: Vec<TypeKind>,
-    param_offsets: Vec<usize>,
     #[allow(unused)]
     results: Vec<TypeKind>,
 }
@@ -37,14 +36,7 @@ impl Item for FuncSignature {
             results.push(reader.read::<TypeKind>()?);
         }
 
-        let mut offsets = Vec::with_capacity(params.len());
-        let mut offset = 0;
-        for param in params.iter() {
-            offsets.push(offset);
-            offset += param.len_bytes();
-        }
-
-        Ok(FuncSignature { params, param_offsets: offsets, results })
+        Ok(FuncSignature { params, results })
     }
 }
 
@@ -64,7 +56,13 @@ pub struct FuncBody<'code> {
     signature: FuncSignature,
     offset: usize,
     pub code: &'code [u8],
-    jump_targets: BTreeMap<usize, usize>, // if location => else location
+
+    // if location => else location
+    jump_targets: BTreeMap<usize, usize>,
+
+    locals_types: Vec<TypeKind>,
+    // params + locals
+    locals_offsets: Vec<usize>,
 }
 
 #[allow(unused)]
@@ -171,12 +169,33 @@ pub fn parse<'code>(
             SectionKind::Code => {
                 let num_funcs = reader.read_usize()?;
                 for _ in 0..num_funcs {
+                    let signature = signatures[func_signatures[functions.len()]].clone();
+
                     let body_len = reader.read_usize()?;
                     let locals_num = reader.read_usize()?;
+
+                    let mut locals_types = Vec::new();
+                    // Copy params into params
+                    locals_types.extend(signature.params.iter().copied());
+
+                    // Copy actual function locals
                     for _ in 0..locals_num {
                         let n = reader.read_usize()?;
                         let ty = reader.read::<TypeKind>()?;
+                        for _ in 0..n {
+                            locals_types.push(ty);
+                        }
                     }
+
+                    let mut offsets = Vec::with_capacity(signature.params.len() + locals_types.len());
+                    let mut offset = 0;
+                    for param in locals_types.iter() {
+                        offsets.push(offset);
+                        offset += param.len_bytes();
+                    }
+
+                    writeln!(ctx, "{:?}", offsets);
+
                     let marker = reader.marker();
                     let mut last_if = None;
                     let mut last_else = None;
@@ -251,7 +270,7 @@ pub fn parse<'code>(
                                 writeln!(ctx, "local.get {}", local_idx);
                             }
                             0x21 => {
-                                // local.get <local>
+                                // local.set <local>
                                 let local_idx = reader.read_u8()?;
                                 writeln!(ctx, "local.set {}", local_idx);
                             }
@@ -334,13 +353,15 @@ pub fn parse<'code>(
                             _ => {
                                 writeln!(ctx, "{:?}", &reader);
                                 todo!("opcode {op:02x?} @ {pos:02x}")
-                            },
+                            }
                         }
                     }
 
                     functions.push(FuncBody {
                         name: None,
-                        signature: signatures[func_signatures[functions.len()]].clone(),
+                        signature,
+                        locals_offsets: offsets,
+                        locals_types,
                         offset: marker.pos(),
                         code: marker.into_slice(&mut reader),
                         jump_targets,
