@@ -221,6 +221,12 @@ impl UntypedMemorySpan {
     }
 }
 
+fn copy_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
+    let non_params_locals_bytes: usize = func_body.non_param_locals().map(|ty| ty.len_bytes()).sum();
+    locals.extend_from_slice(params_data);
+    locals.resize(locals.len() + non_params_locals_bytes, 0);
+}
+
 pub fn evaluate<'code>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
@@ -230,11 +236,7 @@ pub fn evaluate<'code>(
     x: &mut impl Context,
 ) {
     ctx.stack.data.clear();
-    ctx.locals.extend(args);
-    // FIXME
-    // for ty in &module.functions[func_idx].locals_types {
-    //     ctx.locals.extend(core::iter::repeat(0u8).take(ty.len_bytes()));
-    // }
+    copy_locals(&mut ctx.locals, args, &module.functions[func_idx]);
     ctx.call_stack.clear();
     ctx.call_stack.push(StackFrame::new(
         module,
@@ -319,11 +321,12 @@ pub fn evaluate<'code>(
 
                 ctx.call_stack.push(StackFrame {
                     func_idx,
-                    reader: Reader::new(module.functions[func_idx].code),
+                    reader: Reader::new(current_func.code),
                     locals_offset: ctx.stack.data.len() - len_locals,
                     curr_loop_start: None,
                 });
-                ctx.locals.extend(&ctx.stack.data[ctx.stack.data.len() - len_locals..]);
+                let params_mem = &ctx.stack.data[ctx.stack.data.len() - len_locals..];
+                copy_locals(&mut ctx.locals, params_mem, current_func);
                 ctx.stack.pop_many(len_locals);
             }
             0x20 => {

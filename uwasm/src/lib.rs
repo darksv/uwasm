@@ -65,6 +65,12 @@ pub struct FuncBody<'code> {
     locals_offsets: Vec<usize>,
 }
 
+impl<'code> FuncBody<'code> {
+    fn non_param_locals(&self) -> impl Iterator<Item=TypeKind> + '_ {
+        self.locals_types.iter().skip(self.signature.params.len()).copied()
+    }
+}
+
 #[allow(unused)]
 pub fn parse<'code>(
     code: &'code [u8],
