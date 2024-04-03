@@ -219,11 +219,13 @@ pub fn parse<'code>(
                             }
                             0x02 => {
                                 // block
+                                writeln!(ctx, "block");
                                 let block_type = reader.read_u8()?;
                                 last_block = Some(pos);
                             }
                             0x03 => {
                                 // loop
+                                writeln!(ctx, "loop");
                                 let loop_type = reader.read_u8()?;
                                 last_loop = Some(pos);
                             }
@@ -256,10 +258,12 @@ pub fn parse<'code>(
                             0x0c => {
                                 // br
                                 let break_depth = reader.read_u8()?;
+                                writeln!(ctx, "br {}", break_depth);
                             }
                             0x0d => {
                                 // br_if
                                 let break_depth = reader.read_u8()?;
+                                writeln!(ctx, "br_if {}", break_depth);
                             }
                             0x10 => {
                                 // call <func_idx>

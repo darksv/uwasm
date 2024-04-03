@@ -26,6 +26,7 @@ pub struct StackFrame<'code> {
     reader: Reader<'code>,
     locals_offset: usize,
     curr_loop_start: Option<usize>,
+    blocks: Vec<usize>,
 }
 
 impl<'code> StackFrame<'code> {
@@ -35,6 +36,7 @@ impl<'code> StackFrame<'code> {
             reader: Reader::new(module.functions[idx].code),
             locals_offset,
             curr_loop_start: None,
+            blocks: Vec::new(),
         }
     }
 }
@@ -61,7 +63,7 @@ impl VmStack {
         #[cfg(debug_assertions)]
         self.types.push(ty);
         #[cfg(not(debug_assertions))]
-        let _ = ty;
+            let _ = ty;
     }
 
     #[inline]
@@ -268,6 +270,7 @@ pub fn evaluate<'code>(
                 // block
                 let ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
+                frame.blocks.push(reader.pos());
             }
             0x03 => {
                 // loop
@@ -287,7 +290,7 @@ pub fn evaluate<'code>(
                     TypeKind::F64 => {
                         let x = ctx.stack.pop_f64().unwrap();
                         x != 0.0
-                    },
+                    }
                     TypeKind::I32 => todo!(),
                     TypeKind::I64 => todo!(),
                 };
@@ -302,12 +305,23 @@ pub fn evaluate<'code>(
             }
             0x0b => {
                 // end
+                frame.blocks.pop();
                 continue;
+            }
+            0x0c => {
+                // br
+                let depth = reader.read_usize().unwrap();
+                reader.skip_to(frame.blocks[depth]);
             }
             0x0d => {
                 // br_if
                 let depth = reader.read_usize().unwrap();
-                // todo!();
+                if ctx.stack.pop_i32().unwrap() == 1 {
+                    reader.skip_to(frame.blocks[depth]);
+                    writeln!(x, "taken");
+                } else {
+                    writeln!(x, "not taken");
+                }
             }
             0x10 => {
                 // call <func_idx>
@@ -324,6 +338,7 @@ pub fn evaluate<'code>(
                     reader: Reader::new(current_func.code),
                     locals_offset: ctx.stack.data.len() - len_locals,
                     curr_loop_start: None,
+                    blocks: Vec::new(),
                 });
                 let params_mem = &ctx.stack.data[ctx.stack.data.len() - len_locals..];
                 copy_locals(&mut ctx.locals, params_mem, current_func);
@@ -359,7 +374,7 @@ pub fn evaluate<'code>(
             0x45 => {
                 // i32.eqz
                 let val = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((val != 0) as i32);
+                ctx.stack.push_i32((val == 0) as i32);
             }
             0x63 => {
                 // f64.lt
@@ -378,6 +393,12 @@ pub fn evaluate<'code>(
                 let b = ctx.stack.pop_i32().unwrap();
                 let a = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32(a - b);
+            }
+            0x6c => {
+                // i32.mul
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(a * b);
             }
             0xa1 => {
                 // f64.sub
