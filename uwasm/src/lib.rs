@@ -284,9 +284,14 @@ pub fn parse<'code>(
                                 let local_idx = reader.read_u8()?;
                                 writeln!(ctx, "local.set {}", local_idx);
                             }
+                            0x22 => {
+                                // local.tee <local>
+                                let local_idx = reader.read_u8()?;
+                                writeln!(ctx, "local.tee {}", local_idx);
+                            }
                             0x41 => {
                                 // i32.const <literal>
-                                let val = reader.read_u32()?;
+                                let val = reader.read_usize()?;
                                 writeln!(ctx, "i32.const {}", val);
                             }
                             0x42 => {
@@ -327,6 +332,10 @@ pub fn parse<'code>(
                             0x68 => {
                                 // i32.ctz
                                 writeln!(ctx, "i32.ctz");
+                            }
+                            0x71 => {
+                                // i32.and
+                                writeln!(ctx, "i32.and");
                             }
                             0x7a => {
                                 // i64.ctz

@@ -21,12 +21,17 @@ impl VmContext<'_> {
     }
 }
 
+enum BlockType {
+    Block,
+    Loop,
+}
+
 pub struct StackFrame<'code> {
     func_idx: usize,
     reader: Reader<'code>,
     locals_offset: usize,
     curr_loop_start: Option<usize>,
-    blocks: Vec<usize>,
+    blocks: Vec<(usize, BlockType)>,
 }
 
 impl<'code> StackFrame<'code> {
@@ -80,6 +85,11 @@ impl VmStack {
         let (rest, &bytes) = self.data.split_last_chunk::<N>()?;
         self.data.drain(rest.len()..);
         Some(bytes)
+    }
+
+    pub fn peek_bytes<const N: usize>(&self) -> Option<[u8; N]> {
+        let (rest, &bytes) = self.data.split_last_chunk::<N>()?;
+        self.data[rest.len()..].first_chunk().copied()
     }
 
     #[inline]
@@ -221,6 +231,17 @@ impl UntypedMemorySpan {
             TypeKind::I64 => self.write_param_raw::<8>(&func, local_idx, stack.pop_i64().unwrap().to_ne_bytes()).unwrap(),
         }
     }
+
+    #[inline]
+    fn copy_from(&mut self, stack: &mut VmStack, local_idx: usize, func: &FuncBody) {
+        match func.locals_types[local_idx] {
+            TypeKind::Void => todo!(),
+            TypeKind::Func => todo!(),
+            TypeKind::FuncRef => todo!(),
+            TypeKind::F32 | TypeKind::I32 => self.write_param_raw::<4>(&func, local_idx, stack.peek_bytes().unwrap()).unwrap(),
+            TypeKind::F64 | TypeKind::I64 => self.write_param_raw::<8>(&func, local_idx, stack.peek_bytes().unwrap()).unwrap(),
+        }
+    }
 }
 
 fn copy_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
@@ -270,12 +291,13 @@ pub fn evaluate<'code>(
                 // block
                 let ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
-                frame.blocks.push(reader.pos());
+                frame.blocks.push((reader.pos(), BlockType::Block));
             }
             0x03 => {
                 // loop
                 let ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
+                frame.blocks.push((reader.pos(), BlockType::Loop));
             }
             0x04 => {
                 // if
@@ -305,19 +327,24 @@ pub fn evaluate<'code>(
             }
             0x0b => {
                 // end
-                frame.blocks.pop();
+                if let Some((start, BlockType::Loop)) = frame.blocks.last() {
+                    reader.skip_to(*start);
+                } else {
+                    frame.blocks.pop();
+                }
                 continue;
             }
             0x0c => {
                 // br
                 let depth = reader.read_usize().unwrap();
-                reader.skip_to(frame.blocks[depth]);
+                reader.skip_to(frame.blocks[depth].0);
+                writeln!(x, "taken");
             }
             0x0d => {
                 // br_if
                 let depth = reader.read_usize().unwrap();
                 if ctx.stack.pop_i32().unwrap() == 1 {
-                    reader.skip_to(frame.blocks[depth]);
+                    reader.skip_to(frame.blocks[depth].0);
                     writeln!(x, "taken");
                 } else {
                     writeln!(x, "not taken");
@@ -355,16 +382,25 @@ pub fn evaluate<'code>(
             }
             0x21 => {
                 // local.set <local>
-                let locals = UntypedMemorySpan::from_slice_mut(
-                    &mut ctx.locals[frame.locals_offset..]
-                );
                 let local_idx = reader.read_u8().unwrap();
-                locals.pop_from(&mut ctx.stack, local_idx as usize, &current_func);
+                writeln!(x, "11 {:?}", &ctx.locals[frame.locals_offset..]);
+                UntypedMemorySpan::from_slice_mut(
+                    &mut ctx.locals[frame.locals_offset..]
+                ).pop_from(&mut ctx.stack, local_idx as usize, &current_func);
+
+                writeln!(x, "22 {:?}", &ctx.locals[frame.locals_offset..]);
+            }
+            0x22 => {
+                // local.tee <local>
+                let local_idx = reader.read_u8().unwrap();
+                UntypedMemorySpan::from_slice_mut(
+                    &mut ctx.locals[frame.locals_offset..]
+                ).copy_from(&mut ctx.stack, local_idx as usize, &current_func);
             }
             0x41 => {
                 // i32.const <literal>
-                let val = reader.read_u32().unwrap();
-                ctx.stack.push_i32(val as i32);
+                let val = reader.read_usize().unwrap();
+                ctx.stack.push_i32(i32::try_from(val).unwrap());
             }
             0x44 => {
                 // f64.const <literal>
@@ -399,6 +435,12 @@ pub fn evaluate<'code>(
                 let b = ctx.stack.pop_i32().unwrap();
                 let a = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32(a * b);
+            }
+            0x71 => {
+                // i32.and
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(a & b);
             }
             0xa1 => {
                 // f64.sub
