@@ -25,6 +25,10 @@ impl<'code> Reader<'code> {
         self.pos = target_offset;
     }
 
+    pub(crate) fn skip_to_end(&mut self) {
+        self.pos = self.data.len();
+    }
+
     pub(crate) fn read_bytes<const N: usize>(&mut self) -> Result<&'code [u8; N], ParserError> {
         if let Some(bytes) = self.data[self.pos..].first_chunk() {
             self.pos += N;

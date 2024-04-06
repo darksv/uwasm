@@ -265,6 +265,10 @@ pub fn parse<'code>(
                                 let break_depth = reader.read_u8()?;
                                 writeln!(ctx, "br_if {}", break_depth);
                             }
+                            0x0f => {
+                                // return
+                                writeln!(ctx, "return");
+                            }
                             0x10 => {
                                 // call <func_idx>
                                 let func_idx = reader.read_usize()?;
@@ -336,6 +340,10 @@ pub fn parse<'code>(
                             0x71 => {
                                 // i32.and
                                 writeln!(ctx, "i32.and");
+                            }
+                            0x76 => {
+                                // i32.shr_u
+                                writeln!(ctx, "i32.shr_u");
                             }
                             0x7a => {
                                 // i64.ctz

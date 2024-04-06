@@ -350,9 +350,14 @@ pub fn evaluate<'code>(
                     writeln!(x, "not taken");
                 }
             }
+            0x0f => {
+                // return
+                reader.skip_to_end();
+            }
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
+                writeln!(x, "calling {}", func_idx);
                 let len_locals = current_func
                     .signature
                     .params
@@ -441,6 +446,12 @@ pub fn evaluate<'code>(
                 let b = ctx.stack.pop_i32().unwrap();
                 let a = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32(a & b);
+            }
+            0x76 => {
+                // i32.shr_u
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(a >> b);
             }
             0xa1 => {
                 // f64.sub
