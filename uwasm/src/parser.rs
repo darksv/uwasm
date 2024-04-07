@@ -87,17 +87,38 @@ impl<'code> Reader<'code> {
 
     #[inline]
     pub(crate) fn read_usize(&mut self) -> Result<usize, ParserError> {
-        let mut result: usize = 0;
+        let val = self.read_unsigned()?;
+        Ok(val as usize)
+    }
+
+    #[inline]
+    fn read_number_raw(&mut self) -> Result<(u64, u8, u32), ParserError> {
+        let mut result: u64 = 0;
         let mut shift = 0;
-        loop {
+        let byte = loop {
             let byte = self.read_u8()?;
-            result |= usize::from(byte & 0b0111_1111) << shift;
-            if byte & 0b1000_0000 == 0 {
-                break;
-            }
+            result |= u64::from(byte & 0x7F) << shift;
             shift += 7;
-        }
+            if byte & 0x80 == 0 {
+                break byte;
+            }
+        };
+
+        Ok((result, byte, shift))
+    }
+
+    pub(crate) fn read_unsigned(&mut self) -> Result<u64, ParserError> {
+        let (result, _byte, _shift) = self.read_number_raw()?;
         Ok(result)
+    }
+
+    pub(crate) fn read_signed(&mut self) -> Result<i64, ParserError> {
+        let (result, byte, shift) = self.read_number_raw()?;
+        let size = i64::BITS;
+        if (shift < size) && (byte & 0x40) != 0 {
+            return Ok((result | (u64::MAX << shift)) as i64);
+        }
+        Ok(result as i64)
     }
 
     #[inline]

@@ -295,12 +295,12 @@ pub fn parse<'code>(
                             }
                             0x41 => {
                                 // i32.const <literal>
-                                let val = reader.read_usize()?;
+                                let val = reader.read_signed()?;
                                 writeln!(ctx, "i32.const {}", val);
                             }
                             0x42 => {
                                 // i64.const <literal>
-                                let val = reader.read_u64()?;
+                                let val = reader.read_signed()?;
                                 writeln!(ctx, "i64.const {}", val);
                             }
                             0x43 => {
