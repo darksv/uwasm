@@ -265,6 +265,18 @@ pub fn parse<'code>(
                                 let break_depth = reader.read_u8()?;
                                 writeln!(ctx, "br_if {}", break_depth);
                             }
+                            0x0e => {
+                                // br_table
+                                // FIXME
+                                let n = reader.read_u8()?;
+                                write!(ctx, "br_table");
+                                for i in 0..n {
+                                    let n = reader.read_u8()?;
+                                    write!(ctx, " {}", n);
+                                }
+                                let else_c = reader.read_u8()?;
+                                writeln!(ctx, " {} ", else_c);
+                            }
                             0x0f => {
                                 // return
                                 writeln!(ctx, "return");
@@ -317,6 +329,10 @@ pub fn parse<'code>(
                                 // i32.eqz
                                 writeln!(ctx, "i32.eqz");
                             }
+                            0x4d => {
+                                // i32.le_u
+                                writeln!(ctx, "i32.le_u");
+                            }
                             0x63 => {
                                 // f64.lt
                                 writeln!(ctx, "f64.lt");
@@ -338,6 +354,10 @@ pub fn parse<'code>(
                                 writeln!(ctx, "i32.ctz");
                             }
                             0x71 => {
+                                // i32.and
+                                writeln!(ctx, "i32.and");
+                            }
+                            0x73 => {
                                 // i32.and
                                 writeln!(ctx, "i32.and");
                             }
