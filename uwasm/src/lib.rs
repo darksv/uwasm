@@ -257,24 +257,24 @@ pub fn parse<'code>(
                             }
                             0x0c => {
                                 // br
-                                let break_depth = reader.read_u8()?;
+                                let break_depth = reader.read_usize()?;
                                 writeln!(ctx, "br {}", break_depth);
                             }
                             0x0d => {
                                 // br_if
-                                let break_depth = reader.read_u8()?;
+                                let break_depth = reader.read_usize()?;
                                 writeln!(ctx, "br_if {}", break_depth);
                             }
                             0x0e => {
                                 // br_table
                                 // FIXME
-                                let n = reader.read_u8()?;
+                                let n = reader.read_usize()?;
                                 write!(ctx, "br_table");
                                 for i in 0..n {
-                                    let n = reader.read_u8()?;
+                                    let n = reader.read_usize()?;
                                     write!(ctx, " {}", n);
                                 }
-                                let else_c = reader.read_u8()?;
+                                let else_c = reader.read_usize()?;
                                 writeln!(ctx, " {} ", else_c);
                             }
                             0x0f => {
@@ -292,17 +292,17 @@ pub fn parse<'code>(
                             }
                             0x20 => {
                                 // local.get <local>
-                                let local_idx = reader.read_u8()?;
+                                let local_idx = reader.read_usize()?;
                                 writeln!(ctx, "local.get {}", local_idx);
                             }
                             0x21 => {
                                 // local.set <local>
-                                let local_idx = reader.read_u8()?;
+                                let local_idx = reader.read_usize()?;
                                 writeln!(ctx, "local.set {}", local_idx);
                             }
                             0x22 => {
                                 // local.tee <local>
-                                let local_idx = reader.read_u8()?;
+                                let local_idx = reader.read_usize()?;
                                 writeln!(ctx, "local.tee {}", local_idx);
                             }
                             0x41 => {
