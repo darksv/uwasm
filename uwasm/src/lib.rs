@@ -232,6 +232,7 @@ pub fn parse<'code>(
                             0x04 => {
                                 // if
                                 writeln!(ctx, "if");
+                                let ty = reader.read::<TypeKind>()?;
                                 last_if = Some(pos);
                             }
                             0x05 => {
@@ -286,9 +287,19 @@ pub fn parse<'code>(
                                 let func_idx = reader.read_usize()?;
                                 writeln!(ctx, "call {}", func_idx);
                             }
+                            0x11 => {
+                                // call_indirect <func_idx>
+                                let sig_idx = reader.read_usize()?;
+                                let table_idx = reader.read_usize()?;
+                                writeln!(ctx, "call_indirect {} {}", sig_idx, table_idx);
+                            }
                             0x1a => {
                                 // drop
                                 writeln!(ctx, "drop");
+                            }
+                            0x1b => {
+                                // select
+                                writeln!(ctx, "select");
                             }
                             0x20 => {
                                 // local.get <local>
@@ -304,6 +315,53 @@ pub fn parse<'code>(
                                 // local.tee <local>
                                 let local_idx = reader.read_usize()?;
                                 writeln!(ctx, "local.tee {}", local_idx);
+                            }
+                            0x24 => {
+                                // global.set <global>
+                                let global_idx = reader.read_usize()?;
+                                writeln!(ctx, "global.set {}", global_idx);
+                            }
+                            0x2a => {
+                                // f32.load
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "f32.load {} {}", align, offset);
+                            }
+                            0x30 => {
+                                // i64.load8_s
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "i64.load8_s {} {}", align, offset);
+                            }
+                            0x37 => {
+                                // i64.store
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "i64.store {} {}", align, offset);
+                            }
+                            0x39 => {
+                                // f64.store
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "f64.store {} {}", align, offset);
+                            }
+                            0x3a => {
+                                // i32.store8
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "i32.store8 {} {}", align, offset);
+                            }
+                            0x3d => {
+                                // i64.store16
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "i64.store16 {} {}", align, offset);
+                            }
+                            0x40 => {
+                                // memory.grow
+                                let mem_idx = reader.read_usize()?;
+                                writeln!(ctx, "memory.grow {}", mem_idx);
+
                             }
                             0x41 => {
                                 // i32.const <literal>
@@ -333,9 +391,17 @@ pub fn parse<'code>(
                                 // i32.le_u
                                 writeln!(ctx, "i32.le_u");
                             }
+                            0x5c => {
+                                // f32.ne
+                                writeln!(ctx, "f32.ne");
+                            }
                             0x63 => {
                                 // f64.lt
                                 writeln!(ctx, "f64.lt");
+                            }
+                            0x65 => {
+                                // f64.le
+                                writeln!(ctx, "f64.le");
                             }
                             0x6a => {
                                 // i32.add
@@ -371,7 +437,11 @@ pub fn parse<'code>(
                             }
                             0x7c => {
                                 // f64
-                                writeln!(ctx, "f64");
+                                writeln!(ctx, "f64?");
+                            }
+                            0x7d => {
+                                // i64.sub
+                                writeln!(ctx, "i64.sub");
                             }
                             0x8c => {
                                 // f32.neg
@@ -396,6 +466,10 @@ pub fn parse<'code>(
                             0xa2 => {
                                 // f64.mul
                                 writeln!(ctx, "f64.mul");
+                            }
+                            0xa7 => {
+                                // i32.wrap_i64
+                                writeln!(ctx, "i32.wrap_i64");
                             }
                             _ => {
                                 writeln!(ctx, "{:?}", &reader);
