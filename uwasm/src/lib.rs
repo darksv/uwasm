@@ -436,8 +436,8 @@ pub fn parse<'code>(
                                 writeln!(ctx, "i64.ctz");
                             }
                             0x7c => {
-                                // f64
-                                writeln!(ctx, "f64?");
+                                // i64.add
+                                writeln!(ctx, "i64.add");
                             }
                             0x7d => {
                                 // i64.sub
