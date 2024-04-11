@@ -207,6 +207,7 @@ pub fn parse<'code>(
                     let mut last_else = None;
                     let mut last_block = None;
                     let mut last_loop = None;
+                    let mut block_depth = 0;
 
                     let mut jump_targets = BTreeMap::new();
                     loop {
@@ -219,9 +220,9 @@ pub fn parse<'code>(
                             }
                             0x02 => {
                                 // block
-                                writeln!(ctx, "block");
                                 let block_type = reader.read_u8()?;
-                                last_block = Some(pos);
+                                writeln!(ctx, "block {:02x}", block_type);
+                                block_depth += 1;
                             }
                             0x03 => {
                                 // loop
@@ -251,9 +252,13 @@ pub fn parse<'code>(
                                 } else if let Some(le) = last_loop.take() {
                                     jump_targets.insert(le, pos + 1 - marker.pos());
                                 } else {
-                                    writeln!(ctx, "// end of function");
-                                    // end of function
-                                    break;
+                                    if block_depth == 0 {
+                                        // end of function
+                                        writeln!(ctx, "// end of function");
+                                        break;
+                                    } else {
+                                        block_depth -= 1;
+                                    }
                                 }
                             }
                             0x0c => {
