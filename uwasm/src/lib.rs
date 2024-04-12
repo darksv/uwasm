@@ -107,6 +107,8 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Type => {
+                writeln!(ctx, "Found type section");
+
                 let num_types = reader.read_usize()?;
                 for _ in 0..num_types {
                     let kind = reader.read::<TypeKind>()?;
@@ -121,14 +123,18 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Function => {
+                writeln!(ctx, "Found function section");
+
                 let num_funcs = reader.read_usize()?;
-                for _ in 0..num_funcs {
+                for func_idx in 0..num_funcs {
                     let sig_index = reader.read_usize()?;
-                    writeln!(ctx, "Function: {:?}", sig_index);
+                    writeln!(ctx, "Function #{func_idx} | signature #{sig_index}: {:?}", &signatures[sig_index]);
                     func_signatures.push(sig_index);
                 }
             }
             SectionKind::Table => {
+                writeln!(ctx, "Found table section");
+
                 let num_tables = reader.read_usize()?;
                 for _ in 0..num_tables {
                     let kind = reader.read::<TypeKind>()?;
@@ -138,7 +144,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Memory => {
-                writeln!(ctx, "Memory section");
+                writeln!(ctx, "Found memory section");
                 let num_memories = reader.read_usize()?;
                 for _ in 0..num_memories {
                     let limits_flags = reader.read_u8()?;
@@ -146,7 +152,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Global => {
-                writeln!(ctx, "Global section");
+                writeln!(ctx, "Found global section");
                 let num_globals = reader.read_usize()?;
                 for _ in 0..num_globals {
                     let kind = reader.read::<TypeKind>()?;
@@ -155,7 +161,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Export => {
-                writeln!(ctx, "Export section");
+                writeln!(ctx, "Found export section");
                 let num_exports = reader.read_usize()?;
                 writeln!(ctx, "{num_exports}");
                 for _ in 0..num_exports {
@@ -170,9 +176,34 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Elem => {
-                let _ = reader.read_bytes::<7>()?; // FIXME
+                writeln!(ctx, "Found elem section");
+                let num_elem_segments = reader.read_usize()?;
+                for _ in 0..num_elem_segments {
+                    let segment_flags = reader.read_u8()?;
+                    loop {
+                        let opcode = reader.read_u8()?;
+                        match opcode {
+                            0x41 => {
+                                // i32.const
+                                _ = reader.read_usize()?;
+                            }
+                            0x0b => {
+                                // end
+                                break;
+                            }
+                            _ => todo!(),
+                        };
+                    }
+                    let num_elements = reader.read_usize()?;
+                    for _ in 0..num_elements {
+                        _ = reader.read_usize()?;
+                    }
+                    // FIXME
+                }
             }
             SectionKind::Code => {
+                writeln!(ctx, "Found code section");
+
                 let num_funcs = reader.read_usize()?;
                 for _ in 0..num_funcs {
                     let signature = signatures[func_signatures[functions.len()]].clone();
@@ -200,7 +231,7 @@ pub fn parse<'code>(
                         offset += param.len_bytes();
                     }
 
-                    writeln!(ctx, "{:?}", offsets);
+                    writeln!(ctx, "offsets={:?}", offsets);
 
                     let marker = reader.marker();
                     let mut last_if = None;
@@ -214,6 +245,10 @@ pub fn parse<'code>(
                         let pos = reader.pos();
                         let op = reader.read_u8()?;
                         match op {
+                            0x00 => {
+                                // unreachable
+                                writeln!(ctx, "unreachable");
+                            }
                             0x01 => {
                                 // nop
                                 writeln!(ctx, "nop");
@@ -321,6 +356,11 @@ pub fn parse<'code>(
                                 let local_idx = reader.read_usize()?;
                                 writeln!(ctx, "local.tee {}", local_idx);
                             }
+                            0x23 => {
+                                // global.get <global>
+                                let global_idx = reader.read_usize()?;
+                                writeln!(ctx, "global.get {}", global_idx);
+                            }
                             0x24 => {
                                 // global.set <global>
                                 let global_idx = reader.read_usize()?;
@@ -337,6 +377,12 @@ pub fn parse<'code>(
                                 let align = reader.read_usize()?;
                                 let offset = reader.read_usize()?;
                                 writeln!(ctx, "i64.load8_s {} {}", align, offset);
+                            }
+                            0x36 => {
+                                // i32.store
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "i32.store {} {}", align, offset);
                             }
                             0x37 => {
                                 // i64.store
@@ -355,6 +401,12 @@ pub fn parse<'code>(
                                 let align = reader.read_usize()?;
                                 let offset = reader.read_usize()?;
                                 writeln!(ctx, "i32.store8 {} {}", align, offset);
+                            }
+                            0x3b => {
+                                // i32.store16
+                                let align = reader.read_usize()?;
+                                let offset = reader.read_usize()?;
+                                writeln!(ctx, "i32.store16 {} {}", align, offset);
                             }
                             0x3d => {
                                 // i64.store16
@@ -420,6 +472,10 @@ pub fn parse<'code>(
                                 // i32.mul
                                 writeln!(ctx, "i32.mul");
                             }
+                            0x6d => {
+                                // i32.div_s
+                                writeln!(ctx, "i32.div_s");
+                            }
                             0x68 => {
                                 // i32.ctz
                                 writeln!(ctx, "i32.ctz");
@@ -428,9 +484,17 @@ pub fn parse<'code>(
                                 // i32.and
                                 writeln!(ctx, "i32.and");
                             }
+                            0x72 => {
+                                // i32.or
+                                writeln!(ctx, "i32.or");
+                            }
                             0x73 => {
                                 // i32.and
                                 writeln!(ctx, "i32.and");
+                            }
+                            0x74 => {
+                                // i32.shl
+                                writeln!(ctx, "i32.shl");
                             }
                             0x76 => {
                                 // i32.shr_u
@@ -447,6 +511,14 @@ pub fn parse<'code>(
                             0x7d => {
                                 // i64.sub
                                 writeln!(ctx, "i64.sub");
+                            }
+                            0x7e => {
+                                // i64.mul
+                                writeln!(ctx, "i64.mul");
+                            }
+                            0x88 => {
+                                // i64.shr_u
+                                writeln!(ctx, "i64.shr_u");
                             }
                             0x8c => {
                                 // f32.neg
@@ -475,6 +547,10 @@ pub fn parse<'code>(
                             0xa7 => {
                                 // i32.wrap_i64
                                 writeln!(ctx, "i32.wrap_i64");
+                            }
+                            0xad => {
+                                // i64.extend_i32_u
+                                writeln!(ctx, "i64.extend_i32_u");
                             }
                             _ => {
                                 writeln!(ctx, "{:?}", &reader);

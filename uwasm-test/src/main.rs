@@ -19,6 +19,8 @@ fn main() -> Result<(), ParserError> {
     let content = std::fs::read(path).expect("read file");
 
     let module = parse(&content, &mut MyCtx)?;
+    dbg!(&module);
+
     let mut ctx = VmContext::new();
     for i in 0..10 {
         evaluate(&mut ctx, &module, 0, &[100u32.to_le_bytes(), (i as u32).to_le_bytes()].concat(), &mut MyCtx);
