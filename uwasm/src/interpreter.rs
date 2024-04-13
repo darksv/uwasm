@@ -287,6 +287,10 @@ pub fn evaluate<'code>(
         writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
 
         match op {
+            0x00 => {
+                writeln!(x, "entered unreachable");
+                break;
+            }
             0x02 => {
                 // block
                 let ty = reader.read_usize().unwrap();
