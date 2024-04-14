@@ -233,339 +233,15 @@ pub fn parse<'code>(
 
                     writeln!(ctx, "offsets={:?}", offsets);
 
-                    let marker = reader.marker();
-                    let mut last_if = None;
-                    let mut last_else = None;
-                    let mut last_block = None;
-                    let mut last_loop = None;
-                    let mut block_depth = 0;
-
-                    let mut jump_targets = BTreeMap::new();
-                    loop {
-                        let pos = reader.pos();
-                        let op = reader.read_u8()?;
-                        match op {
-                            0x00 => {
-                                // unreachable
-                                writeln!(ctx, "unreachable");
-                            }
-                            0x01 => {
-                                // nop
-                                writeln!(ctx, "nop");
-                            }
-                            0x02 => {
-                                // block
-                                let block_type = reader.read_u8()?;
-                                writeln!(ctx, "block {:02x}", block_type);
-                                block_depth += 1;
-                            }
-                            0x03 => {
-                                // loop
-                                writeln!(ctx, "loop");
-                                let loop_type = reader.read_u8()?;
-                                last_loop = Some(pos);
-                            }
-                            0x04 => {
-                                // if
-                                writeln!(ctx, "if");
-                                let ty = reader.read::<TypeKind>()?;
-                                last_if = Some(pos);
-                            }
-                            0x05 => {
-                                // else
-                                writeln!(ctx, "else");
-                                jump_targets.insert(last_if.unwrap(), pos + 1 - marker.pos());
-                                last_else = Some(pos);
-                            }
-                            0x0b => {
-                                // end
-                                writeln!(ctx, "end");
-                                if let Some(le) = last_else.take() {
-                                    jump_targets.insert(le, pos + 1 - marker.pos());
-                                } else if let Some(le) = last_block.take() {
-                                    jump_targets.insert(le, pos + 1 - marker.pos());
-                                } else if let Some(le) = last_loop.take() {
-                                    jump_targets.insert(le, pos + 1 - marker.pos());
-                                } else {
-                                    if block_depth == 0 {
-                                        // end of function
-                                        writeln!(ctx, "// end of function");
-                                        break;
-                                    } else {
-                                        block_depth -= 1;
-                                    }
-                                }
-                            }
-                            0x0c => {
-                                // br
-                                let break_depth = reader.read_usize()?;
-                                writeln!(ctx, "br {}", break_depth);
-                            }
-                            0x0d => {
-                                // br_if
-                                let break_depth = reader.read_usize()?;
-                                writeln!(ctx, "br_if {}", break_depth);
-                            }
-                            0x0e => {
-                                // br_table
-                                // FIXME
-                                let n = reader.read_usize()?;
-                                write!(ctx, "br_table");
-                                for i in 0..n {
-                                    let n = reader.read_usize()?;
-                                    write!(ctx, " {}", n);
-                                }
-                                let else_c = reader.read_usize()?;
-                                writeln!(ctx, " {} ", else_c);
-                            }
-                            0x0f => {
-                                // return
-                                writeln!(ctx, "return");
-                            }
-                            0x10 => {
-                                // call <func_idx>
-                                let func_idx = reader.read_usize()?;
-                                writeln!(ctx, "call {}", func_idx);
-                            }
-                            0x11 => {
-                                // call_indirect <func_idx>
-                                let sig_idx = reader.read_usize()?;
-                                let table_idx = reader.read_usize()?;
-                                writeln!(ctx, "call_indirect {} {}", sig_idx, table_idx);
-                            }
-                            0x1a => {
-                                // drop
-                                writeln!(ctx, "drop");
-                            }
-                            0x1b => {
-                                // select
-                                writeln!(ctx, "select");
-                            }
-                            0x20 => {
-                                // local.get <local>
-                                let local_idx = reader.read_usize()?;
-                                writeln!(ctx, "local.get {}", local_idx);
-                            }
-                            0x21 => {
-                                // local.set <local>
-                                let local_idx = reader.read_usize()?;
-                                writeln!(ctx, "local.set {}", local_idx);
-                            }
-                            0x22 => {
-                                // local.tee <local>
-                                let local_idx = reader.read_usize()?;
-                                writeln!(ctx, "local.tee {}", local_idx);
-                            }
-                            0x23 => {
-                                // global.get <global>
-                                let global_idx = reader.read_usize()?;
-                                writeln!(ctx, "global.get {}", global_idx);
-                            }
-                            0x24 => {
-                                // global.set <global>
-                                let global_idx = reader.read_usize()?;
-                                writeln!(ctx, "global.set {}", global_idx);
-                            }
-                            0x2a => {
-                                // f32.load
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "f32.load {} {}", align, offset);
-                            }
-                            0x30 => {
-                                // i64.load8_s
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "i64.load8_s {} {}", align, offset);
-                            }
-                            0x36 => {
-                                // i32.store
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "i32.store {} {}", align, offset);
-                            }
-                            0x37 => {
-                                // i64.store
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "i64.store {} {}", align, offset);
-                            }
-                            0x39 => {
-                                // f64.store
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "f64.store {} {}", align, offset);
-                            }
-                            0x3a => {
-                                // i32.store8
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "i32.store8 {} {}", align, offset);
-                            }
-                            0x3b => {
-                                // i32.store16
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "i32.store16 {} {}", align, offset);
-                            }
-                            0x3d => {
-                                // i64.store16
-                                let align = reader.read_usize()?;
-                                let offset = reader.read_usize()?;
-                                writeln!(ctx, "i64.store16 {} {}", align, offset);
-                            }
-                            0x40 => {
-                                // memory.grow
-                                let mem_idx = reader.read_usize()?;
-                                writeln!(ctx, "memory.grow {}", mem_idx);
-
-                            }
-                            0x41 => {
-                                // i32.const <literal>
-                                let val = reader.read_signed()?;
-                                writeln!(ctx, "i32.const {}", val);
-                            }
-                            0x42 => {
-                                // i64.const <literal>
-                                let val = reader.read_signed()?;
-                                writeln!(ctx, "i64.const {}", val);
-                            }
-                            0x43 => {
-                                // f32.const <literal>
-                                let val = reader.read_f32()?;
-                                writeln!(ctx, "f32.const {}", val);
-                            }
-                            0x44 => {
-                                // f64.const <literal>
-                                let val = reader.read_f64()?;
-                                writeln!(ctx, "f64.const {}", val);
-                            }
-                            0x45 => {
-                                // i32.eqz
-                                writeln!(ctx, "i32.eqz");
-                            }
-                            0x4d => {
-                                // i32.le_u
-                                writeln!(ctx, "i32.le_u");
-                            }
-                            0x5c => {
-                                // f32.ne
-                                writeln!(ctx, "f32.ne");
-                            }
-                            0x63 => {
-                                // f64.lt
-                                writeln!(ctx, "f64.lt");
-                            }
-                            0x65 => {
-                                // f64.le
-                                writeln!(ctx, "f64.le");
-                            }
-                            0x6a => {
-                                // i32.add
-                                writeln!(ctx, "i32.add");
-                            }
-                            0x6b => {
-                                // i32.sub
-                                writeln!(ctx, "i32.sub");
-                            }
-                            0x6c => {
-                                // i32.mul
-                                writeln!(ctx, "i32.mul");
-                            }
-                            0x6d => {
-                                // i32.div_s
-                                writeln!(ctx, "i32.div_s");
-                            }
-                            0x68 => {
-                                // i32.ctz
-                                writeln!(ctx, "i32.ctz");
-                            }
-                            0x71 => {
-                                // i32.and
-                                writeln!(ctx, "i32.and");
-                            }
-                            0x72 => {
-                                // i32.or
-                                writeln!(ctx, "i32.or");
-                            }
-                            0x73 => {
-                                // i32.and
-                                writeln!(ctx, "i32.and");
-                            }
-                            0x74 => {
-                                // i32.shl
-                                writeln!(ctx, "i32.shl");
-                            }
-                            0x76 => {
-                                // i32.shr_u
-                                writeln!(ctx, "i32.shr_u");
-                            }
-                            0x7a => {
-                                // i64.ctz
-                                writeln!(ctx, "i64.ctz");
-                            }
-                            0x7c => {
-                                // i64.add
-                                writeln!(ctx, "i64.add");
-                            }
-                            0x7d => {
-                                // i64.sub
-                                writeln!(ctx, "i64.sub");
-                            }
-                            0x7e => {
-                                // i64.mul
-                                writeln!(ctx, "i64.mul");
-                            }
-                            0x88 => {
-                                // i64.shr_u
-                                writeln!(ctx, "i64.shr_u");
-                            }
-                            0x8c => {
-                                // f32.neg
-                                writeln!(ctx, "f32.neg");
-                            }
-                            0x92 => {
-                                // f32.add
-                                writeln!(ctx, "f32.add");
-                            }
-                            0x9a => {
-                                // f64.neg
-                                writeln!(ctx, "f64.neg");
-                            }
-                            0xa0 => {
-                                // f64.add
-                                writeln!(ctx, "f64.add");
-                            }
-                            0xa1 => {
-                                // f64.sub
-                                writeln!(ctx, "f64.sub");
-                            }
-                            0xa2 => {
-                                // f64.mul
-                                writeln!(ctx, "f64.mul");
-                            }
-                            0xa7 => {
-                                // i32.wrap_i64
-                                writeln!(ctx, "i32.wrap_i64");
-                            }
-                            0xad => {
-                                // i64.extend_i32_u
-                                writeln!(ctx, "i64.extend_i32_u");
-                            }
-                            _ => {
-                                writeln!(ctx, "{:?}", &reader);
-                                todo!("opcode {op:02x?} @ {pos:02x}")
-                            }
-                        }
-                    }
+                    let CodeInfo { offset, code, jump_targets } = parse_code(&mut reader, ctx)?;
 
                     functions.push(FuncBody {
                         name: None,
                         signature,
                         locals_offsets: offsets,
                         locals_types,
-                        offset: marker.pos(),
-                        code: marker.into_slice(&mut reader),
+                        offset,
+                        code,
                         jump_targets,
                     })
                 }
@@ -574,6 +250,345 @@ pub fn parse<'code>(
     }
 
     Ok(WasmModule { functions })
+}
+
+struct CodeInfo<'code> {
+    offset: usize,
+    code: &'code [u8],
+    jump_targets: BTreeMap<usize, usize>,
+}
+
+fn parse_code<'c>(reader: &mut Reader<'c>, ctx: &mut impl Context) -> Result<CodeInfo<'c>, ParserError> {
+    let marker = reader.marker();
+    let mut last_if = None;
+    let mut last_else = None;
+    let mut last_block = None;
+    let mut last_loop = None;
+    let mut block_depth = 0;
+
+    let mut jump_targets = BTreeMap::new();
+    loop {
+        let pos = reader.pos();
+        let op = reader.read_u8()?;
+        match op {
+            0x00 => {
+                // unreachable
+                writeln!(ctx, "unreachable");
+            }
+            0x01 => {
+                // nop
+                writeln!(ctx, "nop");
+            }
+            0x02 => {
+                // block
+                let block_type = reader.read_u8()?;
+                writeln!(ctx, "block {:02x}", block_type);
+                block_depth += 1;
+            }
+            0x03 => {
+                // loop
+                writeln!(ctx, "loop");
+                let loop_type = reader.read_u8()?;
+                last_loop = Some(pos);
+            }
+            0x04 => {
+                // if
+                writeln!(ctx, "if");
+                let ty = reader.read::<TypeKind>()?;
+                last_if = Some(pos);
+            }
+            0x05 => {
+                // else
+                writeln!(ctx, "else");
+                jump_targets.insert(last_if.unwrap(), pos + 1 - marker.pos());
+                last_else = Some(pos);
+            }
+            0x0b => {
+                // end
+                writeln!(ctx, "end");
+                if let Some(le) = last_else.take() {
+                    jump_targets.insert(le, pos + 1 - marker.pos());
+                } else if let Some(le) = last_block.take() {
+                    jump_targets.insert(le, pos + 1 - marker.pos());
+                } else if let Some(le) = last_loop.take() {
+                    jump_targets.insert(le, pos + 1 - marker.pos());
+                } else {
+                    if block_depth == 0 {
+                        // end of function
+                        writeln!(ctx, "// end of function");
+                        break;
+                    } else {
+                        block_depth -= 1;
+                    }
+                }
+            }
+            0x0c => {
+                // br
+                let break_depth = reader.read_usize()?;
+                writeln!(ctx, "br {}", break_depth);
+            }
+            0x0d => {
+                // br_if
+                let break_depth = reader.read_usize()?;
+                writeln!(ctx, "br_if {}", break_depth);
+            }
+            0x0e => {
+                // br_table
+                // FIXME
+                let n = reader.read_usize()?;
+                write!(ctx, "br_table");
+                for i in 0..n {
+                    let n = reader.read_usize()?;
+                    write!(ctx, " {}", n);
+                }
+                let else_c = reader.read_usize()?;
+                writeln!(ctx, " {} ", else_c);
+            }
+            0x0f => {
+                // return
+                writeln!(ctx, "return");
+            }
+            0x10 => {
+                // call <func_idx>
+                let func_idx = reader.read_usize()?;
+                writeln!(ctx, "call {}", func_idx);
+            }
+            0x11 => {
+                // call_indirect <func_idx>
+                let sig_idx = reader.read_usize()?;
+                let table_idx = reader.read_usize()?;
+                writeln!(ctx, "call_indirect {} {}", sig_idx, table_idx);
+            }
+            0x1a => {
+                // drop
+                writeln!(ctx, "drop");
+            }
+            0x1b => {
+                // select
+                writeln!(ctx, "select");
+            }
+            0x20 => {
+                // local.get <local>
+                let local_idx = reader.read_usize()?;
+                writeln!(ctx, "local.get {}", local_idx);
+            }
+            0x21 => {
+                // local.set <local>
+                let local_idx = reader.read_usize()?;
+                writeln!(ctx, "local.set {}", local_idx);
+            }
+            0x22 => {
+                // local.tee <local>
+                let local_idx = reader.read_usize()?;
+                writeln!(ctx, "local.tee {}", local_idx);
+            }
+            0x23 => {
+                // global.get <global>
+                let global_idx = reader.read_usize()?;
+                writeln!(ctx, "global.get {}", global_idx);
+            }
+            0x24 => {
+                // global.set <global>
+                let global_idx = reader.read_usize()?;
+                writeln!(ctx, "global.set {}", global_idx);
+            }
+            0x2a => {
+                // f32.load
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "f32.load {} {}", align, offset);
+            }
+            0x30 => {
+                // i64.load8_s
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "i64.load8_s {} {}", align, offset);
+            }
+            0x36 => {
+                // i32.store
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "i32.store {} {}", align, offset);
+            }
+            0x37 => {
+                // i64.store
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "i64.store {} {}", align, offset);
+            }
+            0x39 => {
+                // f64.store
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "f64.store {} {}", align, offset);
+            }
+            0x3a => {
+                // i32.store8
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "i32.store8 {} {}", align, offset);
+            }
+            0x3b => {
+                // i32.store16
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "i32.store16 {} {}", align, offset);
+            }
+            0x3d => {
+                // i64.store16
+                let align = reader.read_usize()?;
+                let offset = reader.read_usize()?;
+                writeln!(ctx, "i64.store16 {} {}", align, offset);
+            }
+            0x40 => {
+                // memory.grow
+                let mem_idx = reader.read_usize()?;
+                writeln!(ctx, "memory.grow {}", mem_idx);
+            }
+            0x41 => {
+                // i32.const <literal>
+                let val = reader.read_signed()?;
+                writeln!(ctx, "i32.const {}", val);
+            }
+            0x42 => {
+                // i64.const <literal>
+                let val = reader.read_signed()?;
+                writeln!(ctx, "i64.const {}", val);
+            }
+            0x43 => {
+                // f32.const <literal>
+                let val = reader.read_f32()?;
+                writeln!(ctx, "f32.const {}", val);
+            }
+            0x44 => {
+                // f64.const <literal>
+                let val = reader.read_f64()?;
+                writeln!(ctx, "f64.const {}", val);
+            }
+            0x45 => {
+                // i32.eqz
+                writeln!(ctx, "i32.eqz");
+            }
+            0x4d => {
+                // i32.le_u
+                writeln!(ctx, "i32.le_u");
+            }
+            0x5c => {
+                // f32.ne
+                writeln!(ctx, "f32.ne");
+            }
+            0x63 => {
+                // f64.lt
+                writeln!(ctx, "f64.lt");
+            }
+            0x65 => {
+                // f64.le
+                writeln!(ctx, "f64.le");
+            }
+            0x6a => {
+                // i32.add
+                writeln!(ctx, "i32.add");
+            }
+            0x6b => {
+                // i32.sub
+                writeln!(ctx, "i32.sub");
+            }
+            0x6c => {
+                // i32.mul
+                writeln!(ctx, "i32.mul");
+            }
+            0x6d => {
+                // i32.div_s
+                writeln!(ctx, "i32.div_s");
+            }
+            0x68 => {
+                // i32.ctz
+                writeln!(ctx, "i32.ctz");
+            }
+            0x71 => {
+                // i32.and
+                writeln!(ctx, "i32.and");
+            }
+            0x72 => {
+                // i32.or
+                writeln!(ctx, "i32.or");
+            }
+            0x73 => {
+                // i32.and
+                writeln!(ctx, "i32.and");
+            }
+            0x74 => {
+                // i32.shl
+                writeln!(ctx, "i32.shl");
+            }
+            0x76 => {
+                // i32.shr_u
+                writeln!(ctx, "i32.shr_u");
+            }
+            0x7a => {
+                // i64.ctz
+                writeln!(ctx, "i64.ctz");
+            }
+            0x7c => {
+                // i64.add
+                writeln!(ctx, "i64.add");
+            }
+            0x7d => {
+                // i64.sub
+                writeln!(ctx, "i64.sub");
+            }
+            0x7e => {
+                // i64.mul
+                writeln!(ctx, "i64.mul");
+            }
+            0x88 => {
+                // i64.shr_u
+                writeln!(ctx, "i64.shr_u");
+            }
+            0x8c => {
+                // f32.neg
+                writeln!(ctx, "f32.neg");
+            }
+            0x92 => {
+                // f32.add
+                writeln!(ctx, "f32.add");
+            }
+            0x9a => {
+                // f64.neg
+                writeln!(ctx, "f64.neg");
+            }
+            0xa0 => {
+                // f64.add
+                writeln!(ctx, "f64.add");
+            }
+            0xa1 => {
+                // f64.sub
+                writeln!(ctx, "f64.sub");
+            }
+            0xa2 => {
+                // f64.mul
+                writeln!(ctx, "f64.mul");
+            }
+            0xa7 => {
+                // i32.wrap_i64
+                writeln!(ctx, "i32.wrap_i64");
+            }
+            0xad => {
+                // i64.extend_i32_u
+                writeln!(ctx, "i64.extend_i32_u");
+            }
+            _ => {
+                writeln!(ctx, "{:?}", &reader);
+                todo!("opcode {op:02x?} @ {pos:02x}")
+            }
+        }
+    }
+
+    Ok(CodeInfo {
+        offset: marker.pos(),
+        code: marker.into_slice(&mut *reader),
+        jump_targets,
+    })
 }
 
 #[cfg(test)]
