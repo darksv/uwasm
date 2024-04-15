@@ -1,6 +1,6 @@
 use alloc::fmt;
 use crate::parser::{Reader, TypeKind};
-use crate::{Context, FuncBody, FuncSignature, ParserError, WasmModule};
+use crate::{Context, FuncBody, ParserError, WasmModule};
 use alloc::vec::Vec;
 use core::fmt::Formatter;
 

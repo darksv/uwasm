@@ -1,3 +1,4 @@
+#![feature(debug_closure_helpers)]
 #![no_std]
 
 extern crate alloc;
@@ -49,7 +50,6 @@ pub struct WasmModule<'code> {
     pub functions: Vec<FuncBody<'code>>,
 }
 
-#[derive(Debug)]
 pub struct FuncBody<'code> {
     #[allow(unused)]
     name: Option<&'code ByteStr>,
@@ -63,6 +63,28 @@ pub struct FuncBody<'code> {
     locals_types: Vec<TypeKind>,
     // params + locals
     locals_offsets: Vec<usize>,
+}
+
+impl fmt::Debug for FuncBody<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO: fix formatting
+
+        f
+            .debug_struct("FuncBody")
+            .field_with("code", |f| {
+                struct Wrapper<'a, 'b>(&'a mut fmt::Formatter<'b>);
+                impl Context for Wrapper<'_, '_> {
+                    fn write_fmt(&mut self, args: fmt::Arguments) {
+                        self.0.write_fmt(args).unwrap();
+                    }
+                }
+
+                let mut reader = Reader::new(self.code);
+                _ = parse_code(&mut reader, &mut Wrapper(f));
+                Ok(())
+            })
+            .finish()
+    }
 }
 
 impl<'code> FuncBody<'code> {
