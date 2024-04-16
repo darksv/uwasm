@@ -536,8 +536,8 @@ fn parse_code<'c>(reader: &mut Reader<'c>, ctx: &mut impl Context) -> Result<Cod
                 writeln!(ctx, "i32.or");
             }
             0x73 => {
-                // i32.and
-                writeln!(ctx, "i32.and");
+                // i32.xor
+                writeln!(ctx, "i32.xor");
             }
             0x74 => {
                 // i32.shl

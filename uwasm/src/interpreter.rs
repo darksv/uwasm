@@ -81,6 +81,11 @@ impl VmStack {
         self.push_bytes(TypeKind::I32, val.to_le_bytes());
     }
 
+    #[inline]
+    fn push_i64(&mut self, val: i64) {
+        self.push_bytes(TypeKind::I64, val.to_le_bytes());
+    }
+
     fn pop_bytes<const N: usize>(&mut self) -> Option<[u8; N]> {
         let (rest, &bytes) = self.data.split_last_chunk::<N>()?;
         self.data.drain(rest.len()..);
@@ -411,6 +416,11 @@ pub fn evaluate<'code>(
                 let val = reader.read_usize().unwrap();
                 ctx.stack.push_i32(i32::try_from(val).unwrap());
             }
+            0x42 => {
+                // i64.const <literal>
+                let val = reader.read_usize().unwrap();
+                ctx.stack.push_i64(i64::try_from(val).unwrap());
+            }
             0x44 => {
                 // f64.const <literal>
                 let val = reader.read_f64().unwrap();
@@ -443,7 +453,13 @@ pub fn evaluate<'code>(
                 // i32.mul
                 let b = ctx.stack.pop_i32().unwrap();
                 let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a * b);
+                ctx.stack.push_i32(a.wrapping_mul(b));
+            }
+            0x6d => {
+                // i32.div_s
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(a / b);
             }
             0x71 => {
                 // i32.and
@@ -451,11 +467,42 @@ pub fn evaluate<'code>(
                 let a = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32(a & b);
             }
+            0x72 => {
+                // i32.or
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(a | b);
+            }
+            0x73 => {
+                // i32.xor
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(a ^ b);
+            }
+            0x74 => {
+                // i32.shl
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(a << b);
+            }
             0x76 => {
                 // i32.shr_u
                 let b = ctx.stack.pop_i32().unwrap();
                 let a = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32(a >> b);
+            }
+            0x7e => {
+                // i64.mul
+                let b = ctx.stack.pop_f64().unwrap();
+                let a = ctx.stack.pop_f64().unwrap();
+                ctx.stack.push_f64(a * b);
+
+            }
+            0x88 => {
+                // i64.shr_u
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i64().unwrap();
+                ctx.stack.push_i64(a >> b);
             }
             0xa1 => {
                 // f64.sub
@@ -468,6 +515,16 @@ pub fn evaluate<'code>(
                 let b = ctx.stack.pop_f64().unwrap();
                 let a = ctx.stack.pop_f64().unwrap();
                 ctx.stack.push_f64(a * b);
+            }
+            0xa7 => {
+                // i32.wrap_i64
+                let a = ctx.stack.pop_i64().unwrap();
+                ctx.stack.push_i32(i32::try_from(a).unwrap());
+            }
+            0xad => {
+                // f64.extend_i32_u
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_f64(f64::try_from(a).unwrap());
             }
             _ => todo!("opcode {:02x?}", op),
         }
