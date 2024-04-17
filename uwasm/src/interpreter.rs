@@ -1,6 +1,6 @@
 use alloc::fmt;
 use crate::parser::{Reader, TypeKind};
-use crate::{Context, FuncBody, ParserError, WasmModule};
+use crate::{Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
 use alloc::vec::Vec;
 use core::fmt::Formatter;
 
@@ -277,6 +277,7 @@ pub fn evaluate<'code>(
         let reader = &mut frame.reader;
         let pos = current_func.offset + reader.pos();
 
+        let opcode_reader = reader.clone();
         let op = match reader.read_u8() {
             Ok(op) => op,
             Err(ParserError::EndOfStream { .. }) => {
@@ -289,7 +290,13 @@ pub fn evaluate<'code>(
             Err(e) => panic!("other err: {e:?}"),
         };
 
-        writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
+        #[cfg(debug_assertions)]
+        {
+            let mut reader = opcode_reader;
+            let pos = reader.pos();
+            writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
+            _ = parse_opcode(&mut reader, pos, x, &mut ParserState::default());
+        }
 
         match op {
             0x00 => {
@@ -519,7 +526,7 @@ pub fn evaluate<'code>(
             0xa7 => {
                 // i32.wrap_i64
                 let a = ctx.stack.pop_i64().unwrap();
-                ctx.stack.push_i32(i32::try_from(a).unwrap());
+                ctx.stack.push_i32(i32::try_from(a & 0xffffffff).unwrap());
             }
             0xad => {
                 // f64.extend_i32_u

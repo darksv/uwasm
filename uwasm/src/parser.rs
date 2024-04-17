@@ -1,6 +1,7 @@
 use core::fmt;
 use crate::str::ByteStr;
 
+#[derive(Clone)]
 pub(crate) struct Reader<'code> {
     data: &'code [u8],
     pos: usize,
