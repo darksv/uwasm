@@ -295,7 +295,8 @@ pub fn evaluate<'code>(
             let mut reader = opcode_reader;
             let pos = reader.pos();
             writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
-            _ = parse_opcode(&mut reader, pos, x, &mut ParserState::default());
+            _ = parse_opcode::<true>(&mut reader, pos, x, &mut ParserState::default());
+            drop(reader);
         }
 
         match op {

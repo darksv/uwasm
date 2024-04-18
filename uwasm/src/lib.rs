@@ -286,7 +286,7 @@ fn parse_code<'c>(reader: &mut Reader<'c>, ctx: &mut impl Context) -> Result<Cod
     let mut state = ParserState::default();
 
     loop {
-        match parse_opcode(reader, marker.pos(), ctx, &mut state)? {
+        match parse_opcode::<false>(reader, marker.pos(), ctx, &mut state)? {
             ControlFlow::Continue(_) => continue,
             ControlFlow::Break(_) => break,
         }
@@ -309,7 +309,7 @@ struct ParserState {
     jump_targets: BTreeMap<usize, usize>,
 }
 
-fn parse_opcode(reader: &mut Reader, start: usize, ctx: &mut impl Context, state: &mut ParserState) -> Result<ControlFlow<(), ()>, ParserError> {
+fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: &mut impl Context, state: &mut ParserState) -> Result<ControlFlow<(), ()>, ParserError> {
     let pos = reader.pos();
     let op = reader.read_u8()?;
     match op {
@@ -325,42 +325,52 @@ fn parse_opcode(reader: &mut Reader, start: usize, ctx: &mut impl Context, state
             // block
             let block_type = reader.read_u8()?;
             writeln!(ctx, "block {:02x}", block_type);
-            state.block_depth += 1;
+            if !ONLY_PRINT {
+                state.block_depth += 1;
+            }
         }
         0x03 => {
             // loop
             writeln!(ctx, "loop");
             let loop_type = reader.read_u8()?;
-            state.last_loop = Some(pos);
+            if !ONLY_PRINT {
+                state.last_loop = Some(pos);
+            }
         }
         0x04 => {
             // if
             writeln!(ctx, "if");
             let ty = reader.read::<TypeKind>()?;
-            state.last_if = Some(pos);
+            if !ONLY_PRINT {
+                state.last_if = Some(pos);
+            }
         }
         0x05 => {
             // else
             writeln!(ctx, "else");
-            state.jump_targets.insert(state.last_if.unwrap(), pos + 1 - start);
-            state.last_else = Some(pos);
+            if !ONLY_PRINT {
+                state.jump_targets.insert(state.last_if.unwrap(), pos + 1 - start);
+                state.last_else = Some(pos);
+            }
         }
         0x0b => {
             // end
             writeln!(ctx, "end");
-            if let Some(le) = state.last_else.take() {
-                state.jump_targets.insert(le, pos + 1 - start);
-            } else if let Some(le) = state.last_block.take() {
-                state.jump_targets.insert(le, pos + 1 - start);
-            } else if let Some(le) = state.last_loop.take() {
-                state.jump_targets.insert(le, pos + 1 - start);
-            } else {
-                if state.block_depth == 0 {
-                    // end of function
-                    writeln!(ctx, "// end of function");
-                    return Ok(ControlFlow::Break(()));
+            if !ONLY_PRINT {
+                if let Some(le) = state.last_else.take() {
+                    state.jump_targets.insert(le, pos + 1 - start);
+                } else if let Some(le) = state.last_block.take() {
+                    state.jump_targets.insert(le, pos + 1 - start);
+                } else if let Some(le) = state.last_loop.take() {
+                    state.jump_targets.insert(le, pos + 1 - start);
                 } else {
-                    state.block_depth -= 1;
+                    if state.block_depth == 0 {
+                        // end of function
+                        writeln!(ctx, "// end of function");
+                        return Ok(ControlFlow::Break(()));
+                    } else {
+                        state.block_depth -= 1;
+                    }
                 }
             }
         }
