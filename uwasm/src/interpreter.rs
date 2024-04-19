@@ -157,10 +157,10 @@ impl fmt::Debug for VmStack {
                         fmt.entry(&reader.read_f64().unwrap());
                     }
                     TypeKind::I32 => {
-                        fmt.entry(&reader.read_u32().unwrap());
+                        fmt.entry(&reader.read_i32().unwrap());
                     }
                     TypeKind::I64 => {
-                        fmt.entry(&reader.read_u64().unwrap());
+                        fmt.entry(&reader.read_i64().unwrap());
                     }
                 }
             }
@@ -421,7 +421,7 @@ pub fn evaluate<'code>(
             }
             0x41 => {
                 // i32.const <literal>
-                let val = reader.read_usize().unwrap();
+                let val = reader.read_isize().unwrap();
                 ctx.stack.push_i32(i32::try_from(val).unwrap());
             }
             0x42 => {
@@ -501,14 +501,13 @@ pub fn evaluate<'code>(
             }
             0x7e => {
                 // i64.mul
-                let b = ctx.stack.pop_f64().unwrap();
-                let a = ctx.stack.pop_f64().unwrap();
-                ctx.stack.push_f64(a * b);
-
+                let b = ctx.stack.pop_i64().unwrap();
+                let a = ctx.stack.pop_i64().unwrap();
+                ctx.stack.push_i64(a * b);
             }
             0x88 => {
                 // i64.shr_u
-                let b = ctx.stack.pop_i32().unwrap();
+                let b = ctx.stack.pop_i64().unwrap();
                 let a = ctx.stack.pop_i64().unwrap();
                 ctx.stack.push_i64(a >> b);
             }

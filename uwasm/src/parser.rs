@@ -81,15 +81,31 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
+    pub(crate) fn read_i32(&mut self) -> Result<i32, ParserError> {
+        self.read_u32().map(|v| v as i32)
+    }
+
+    #[inline]
     #[allow(unused)]
     pub(crate) fn read_u64(&mut self) -> Result<u64, ParserError> {
         self.read_bytes::<8>().map(|b| u64::from_le_bytes(*b))
     }
 
     #[inline]
+    pub(crate) fn read_i64(&mut self) -> Result<i64, ParserError> {
+        self.read_u64().map(|v| v as i64)
+    }
+
+    #[inline]
     pub(crate) fn read_usize(&mut self) -> Result<usize, ParserError> {
         let val = self.read_unsigned()?;
         Ok(val as usize)
+    }
+
+    #[inline]
+    pub(crate) fn read_isize(&mut self) -> Result<isize, ParserError> {
+        let val = self.read_signed()?;
+        Ok(val as isize)
     }
 
     #[inline]
