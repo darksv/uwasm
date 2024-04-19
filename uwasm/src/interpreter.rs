@@ -294,7 +294,7 @@ pub fn evaluate<'code>(
         {
             let mut reader = opcode_reader;
             let pos = reader.pos();
-            writeln!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?}", op, &ctx.stack);
+            write!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?} :: ", op, &ctx.stack);
             _ = parse_opcode::<true>(&mut reader, pos, x, &mut ParserState::default());
             drop(reader);
         }
@@ -530,9 +530,9 @@ pub fn evaluate<'code>(
                 ctx.stack.push_i32(i32::try_from(a & 0xffffffff).unwrap());
             }
             0xad => {
-                // f64.extend_i32_u
+                // i64.extend_i32_u
                 let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_f64(f64::try_from(a).unwrap());
+                ctx.stack.push_i64(i64::from(a));
             }
             _ => todo!("opcode {:02x?}", op),
         }
