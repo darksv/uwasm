@@ -112,6 +112,13 @@ impl VmStack {
     }
 
     #[inline]
+    pub fn pop_u32(&mut self) -> Option<u32> {
+        #[cfg(debug_assertions)]
+        self.types.pop();
+        self.pop_bytes().map(u32::from_le_bytes)
+    }
+
+    #[inline]
     pub fn pop_f32(&mut self) -> Option<f32> {
         #[cfg(debug_assertions)]
         self.types.pop();

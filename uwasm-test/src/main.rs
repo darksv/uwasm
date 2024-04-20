@@ -12,6 +12,8 @@ impl Context for MyCtx {
     }
 }
 
+include!("../../tests/simple_code.rs");
+
 fn main() -> Result<(), ParserError> {
     let Some(path) = std::env::args_os().nth(1) else {
         panic!("missing path to .wasm file")
@@ -24,7 +26,7 @@ fn main() -> Result<(), ParserError> {
     let mut ctx = VmContext::new();
     for i in 0..10 {
         evaluate(&mut ctx, &module, 1, &[100u32.to_le_bytes(), (i as u32).to_le_bytes()].concat(), &mut MyCtx);
-        dbg!(ctx.stack.pop_i32());
+        assert_eq!(ctx.stack.pop_u32(), Some(factorial(100, i)));
     }
 
     Ok(())
