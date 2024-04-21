@@ -362,6 +362,7 @@ pub fn evaluate<'code>(
                 // br
                 let depth = reader.read_usize().unwrap();
                 reader.skip_to(frame.blocks[depth].0);
+                #[cfg(debug_assertions)]
                 writeln!(x, "taken");
             }
             0x0d => {
@@ -369,8 +370,10 @@ pub fn evaluate<'code>(
                 let depth = reader.read_usize().unwrap();
                 if ctx.stack.pop_i32().unwrap() == 1 {
                     reader.skip_to(frame.blocks[depth].0);
+                    #[cfg(debug_assertions)]
                     writeln!(x, "taken");
                 } else {
+                    #[cfg(debug_assertions)]
                     writeln!(x, "not taken");
                 }
             }
@@ -381,6 +384,7 @@ pub fn evaluate<'code>(
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize().unwrap();
+                #[cfg(debug_assertions)]
                 writeln!(x, "calling {}", func_idx);
                 let len_locals = current_func
                     .signature
@@ -412,12 +416,9 @@ pub fn evaluate<'code>(
             0x21 => {
                 // local.set <local>
                 let local_idx = reader.read_u8().unwrap();
-                writeln!(x, "11 {:?}", &ctx.locals[frame.locals_offset..]);
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
                 ).pop_from(&mut ctx.stack, local_idx as usize, &current_func);
-
-                writeln!(x, "22 {:?}", &ctx.locals[frame.locals_offset..]);
             }
             0x22 => {
                 // local.tee <local>

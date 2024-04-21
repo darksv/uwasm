@@ -25,7 +25,7 @@ fn main() -> Result<(), ParserError> {
 
     let mut ctx = VmContext::new();
     for i in 0..10 {
-        evaluate(&mut ctx, &module, 1, &[100u32.to_le_bytes(), (i as u32).to_le_bytes()].concat(), &mut MyCtx);
+        evaluate(&mut ctx, &module, 0, &[100u32.to_le_bytes(), (i as u32).to_le_bytes()].concat(), &mut MyCtx);
         assert_eq!(ctx.stack.pop_u32(), Some(factorial(100, i)));
     }
 
