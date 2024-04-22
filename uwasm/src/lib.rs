@@ -521,6 +521,10 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
             // i32.eqz
             writeln!(ctx, "i32.eqz");
         }
+        0x47 => {
+            // i32.ne
+            writeln!(ctx, "i32.ne");
+        }
         0x4d => {
             // i32.le_u
             writeln!(ctx, "i32.le_u");
@@ -628,6 +632,10 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
         0xad => {
             // i64.extend_i32_u
             writeln!(ctx, "i64.extend_i32_u");
+        }
+        0xc1 => {
+            // i32.extend16_s
+            writeln!(ctx, "i32.extend16_s");
         }
         _ => {
             writeln!(ctx, "{:?}", &reader);
