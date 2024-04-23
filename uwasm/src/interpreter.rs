@@ -337,8 +337,14 @@ pub fn evaluate<'code>(
                         let x = ctx.stack.pop_f64().unwrap();
                         x != 0.0
                     }
-                    TypeKind::I32 => todo!(),
-                    TypeKind::I64 => todo!(),
+                    TypeKind::I32 => {
+                        let x = ctx.stack.pop_i32().unwrap();
+                        x != 0
+                    },
+                    TypeKind::I64 => {
+                        let x = ctx.stack.pop_i64().unwrap();
+                        x != 0
+                    },
                 };
 
                 if !cond {
