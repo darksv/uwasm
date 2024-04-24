@@ -521,13 +521,45 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
             // i32.eqz
             writeln!(ctx, "i32.eqz");
         }
+        0x46 => {
+            // i32.eq
+            writeln!(ctx, "i32.eq");
+        }
         0x47 => {
             // i32.ne
             writeln!(ctx, "i32.ne");
         }
+        0x48 => {
+            // i32.lt_s
+            writeln!(ctx, "i32.lt_s");
+        }
+        0x49 => {
+            // i32.lt_u
+            writeln!(ctx, "i32.lt_u");
+        }
+        0x4a => {
+            // i32.le_s
+            writeln!(ctx, "i32.le_s");
+        }
+        0x4b => {
+            // i32.gt_s
+            writeln!(ctx, "i32.gt_s");
+        }
+        0x4c => {
+            // i32.gt_u
+            writeln!(ctx, "i32.gt_u");
+        }
         0x4d => {
             // i32.le_u
             writeln!(ctx, "i32.le_u");
+        }
+        0x4e => {
+            // i32.ge_s
+            writeln!(ctx, "i32.ge_s");
+        }
+        0x4f => {
+            // i32.ge_u
+            writeln!(ctx, "i32.ge_u");
         }
         0x5c => {
             // f32.ne
@@ -540,6 +572,18 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
         0x65 => {
             // f64.le
             writeln!(ctx, "f64.le");
+        }
+        0x67 => {
+            // i32.clz
+            writeln!(ctx, "i32.clz");
+        }
+        0x68 => {
+            // i32.ctz
+            writeln!(ctx, "i32.ctz");
+        }
+        0x69 => {
+            // i32.popcnt
+            writeln!(ctx, "i32.popcnt");
         }
         0x6a => {
             // i32.add
@@ -557,9 +601,17 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
             // i32.div_s
             writeln!(ctx, "i32.div_s");
         }
-        0x68 => {
-            // i32.ctz
-            writeln!(ctx, "i32.ctz");
+        0x6e => {
+            // i32.div_u
+            writeln!(ctx, "i32.div_u");
+        }
+        0x6f => {
+            // i32.rem_s
+            writeln!(ctx, "i32.rem_s");
+        }
+        0x70 => {
+            // i32.rem_u
+            writeln!(ctx, "i32.rem_u");
         }
         0x71 => {
             // i32.and
@@ -577,9 +629,21 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
             // i32.shl
             writeln!(ctx, "i32.shl");
         }
+        0x75 => {
+            // i32.shr_s
+            writeln!(ctx, "i32.shr_s");
+        }
         0x76 => {
             // i32.shr_u
             writeln!(ctx, "i32.shr_u");
+        }
+        0x77 => {
+            // i32.rotl
+            writeln!(ctx, "i32.rotl");
+        }
+        0x78 => {
+            // i32.rotr
+            writeln!(ctx, "i32.rotr");
         }
         0x7a => {
             // i64.ctz
@@ -632,6 +696,10 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
         0xad => {
             // i64.extend_i32_u
             writeln!(ctx, "i64.extend_i32_u");
+        }
+        0xc0 => {
+            // i32.extend8_s
+            writeln!(ctx, "i32.extend8_s");
         }
         0xc1 => {
             // i32.extend16_s
