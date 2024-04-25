@@ -453,6 +453,66 @@ pub fn evaluate<'code>(
                 let val = ctx.stack.pop_i32().unwrap();
                 ctx.stack.push_i32((val == 0) as i32);
             }
+            0x46 => {
+                // i32.eq
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32((a == b) as i32);
+            }
+            0x47 => {
+                // i32.ne
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32((a != b) as i32);
+            }
+            0x48 => {
+                // i32.lt_s
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32((a < b) as i32);
+            }
+            0x49 => {
+                // i32.lt_u
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(((a as u32) < (b as u32)) as i32);
+            }
+            0x4a => {
+                // i32.le_s
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32((a <= b) as i32);
+            }
+            0x4b => {
+                // i32.gt_s
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32((a > b) as i32);
+            }
+            0x4c => {
+                // i32.gt_u
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(((a as u32) > (b as u32)) as i32);
+            }
+            0x4d => {
+                // i32.le_u
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(((a as u32) <= (b as u32)) as i32);
+            }
+            0x4e => {
+                // i32.ge_s
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32((a >= b) as i32);
+            }
+            0x4f => {
+                // i32.ge_u
+                let b = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                ctx.stack.push_i32(((a as u32) >= (b as u32)) as i32);
+            }
             0x63 => {
                 // f64.lt
                 let b = ctx.stack.pop_f64().unwrap();
