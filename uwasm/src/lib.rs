@@ -16,6 +16,7 @@ use crate::str::ByteStr;
 mod interpreter;
 mod parser;
 mod str;
+mod operand;
 
 #[derive(Debug, Clone)]
 struct FuncSignature {

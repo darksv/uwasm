@@ -1,8 +1,10 @@
 use alloc::fmt;
-use crate::parser::{Reader, TypeKind};
-use crate::{Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
 use alloc::vec::Vec;
 use core::fmt::Formatter;
+
+use crate::{Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
+use crate::operand::{EvaluationError, Operand};
+use crate::parser::{Reader, TypeKind};
 
 pub struct VmContext<'code> {
     pub stack: VmStack,
@@ -72,17 +74,17 @@ impl VmStack {
     }
 
     #[inline]
-    fn push_f64(&mut self, val: f64) {
+    pub fn push_f64(&mut self, val: f64) {
         self.push_bytes(TypeKind::F64, val.to_le_bytes());
     }
 
     #[inline]
-    fn push_i32(&mut self, val: i32) {
+    pub fn push_i32(&mut self, val: i32) {
         self.push_bytes(TypeKind::I32, val.to_le_bytes());
     }
 
     #[inline]
-    fn push_i64(&mut self, val: i64) {
+    pub fn push_i64(&mut self, val: i64) {
         self.push_bytes(TypeKind::I64, val.to_le_bytes());
     }
 
@@ -143,6 +145,25 @@ impl VmStack {
             }
         }
         self.data.drain(self.data.len() - n_bytes..);
+    }
+
+    #[inline]
+    #[track_caller]
+    fn inplace_bin_op<T: Operand, U: Operand, R: Operand>(&mut self, op: impl FnOnce(T, U) -> R) -> Result<R, EvaluationError> {
+        let b = U::pop(self)?;
+        let a = T::pop(self)?;
+        let result = op(a, b);
+        R::push(self, result);
+        Ok(result)
+    }
+
+    #[inline]
+    #[track_caller]
+    fn inplace_unary_op<T: Operand, R: Operand>(&mut self, op: impl FnOnce(T) -> R) -> Result<R, EvaluationError> {
+        let a = T::pop(self)?;
+        let result = op(a);
+        R::push(self, result);
+        Ok(result)
     }
 }
 
@@ -340,11 +361,11 @@ pub fn evaluate<'code>(
                     TypeKind::I32 => {
                         let x = ctx.stack.pop_i32().unwrap();
                         x != 0
-                    },
+                    }
                     TypeKind::I64 => {
                         let x = ctx.stack.pop_i64().unwrap();
                         x != 0
-                    },
+                    }
                 };
 
                 if !cond {
@@ -450,162 +471,111 @@ pub fn evaluate<'code>(
             }
             0x45 => {
                 // i32.eqz
-                let val = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((val == 0) as i32);
+                ctx.stack.inplace_unary_op(|a: i32| a == 0).unwrap();
             }
             0x46 => {
                 // i32.eq
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((a == b) as i32);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a == b).unwrap();
             }
             0x47 => {
                 // i32.ne
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((a != b) as i32);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a != b).unwrap();
             }
             0x48 => {
                 // i32.lt_s
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((a < b) as i32);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a < b).unwrap();
             }
             0x49 => {
                 // i32.lt_u
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(((a as u32) < (b as u32)) as i32);
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a < b).unwrap();
             }
             0x4a => {
                 // i32.le_s
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((a <= b) as i32);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a <= b).unwrap();
             }
             0x4b => {
                 // i32.gt_s
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((a > b) as i32);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a > b).unwrap();
             }
             0x4c => {
                 // i32.gt_u
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(((a as u32) > (b as u32)) as i32);
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a > b).unwrap();
             }
             0x4d => {
                 // i32.le_u
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(((a as u32) <= (b as u32)) as i32);
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a <= b).unwrap();
             }
             0x4e => {
                 // i32.ge_s
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32((a >= b) as i32);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a >= b).unwrap();
             }
             0x4f => {
                 // i32.ge_u
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(((a as u32) >= (b as u32)) as i32);
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a >= b).unwrap();
             }
             0x63 => {
                 // f64.lt
-                let b = ctx.stack.pop_f64().unwrap();
-                let a = ctx.stack.pop_f64().unwrap();
-                ctx.stack.push_f64((a < b) as i32 as f64);
+                ctx.stack.inplace_bin_op(|a: f64, b: f64| (a < b) as i32 as f64).unwrap();
             }
             0x6a => {
                 // i32.add
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a + b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a + b).unwrap();
             }
             0x6b => {
                 // i32.sub
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a - b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a - b).unwrap();
             }
             0x6c => {
                 // i32.mul
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a.wrapping_mul(b));
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a.wrapping_mul(b)).unwrap();
             }
             0x6d => {
                 // i32.div_s
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a / b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a / b).unwrap();
             }
             0x71 => {
                 // i32.and
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a & b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a & b).unwrap();
             }
             0x72 => {
                 // i32.or
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a | b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a | b).unwrap();
             }
             0x73 => {
                 // i32.xor
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a ^ b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a ^ b).unwrap();
             }
             0x74 => {
                 // i32.shl
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a << b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a << b).unwrap();
             }
             0x76 => {
                 // i32.shr_u
-                let b = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i32(a >> b);
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a >> b).unwrap();
             }
             0x7e => {
                 // i64.mul
-                let b = ctx.stack.pop_i64().unwrap();
-                let a = ctx.stack.pop_i64().unwrap();
-                ctx.stack.push_i64(a * b);
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a * b).unwrap();
             }
             0x88 => {
                 // i64.shr_u
-                let b = ctx.stack.pop_i64().unwrap();
-                let a = ctx.stack.pop_i64().unwrap();
-                ctx.stack.push_i64(a >> b);
+                ctx.stack.inplace_bin_op(|a: u64, b: u64| a >> b).unwrap();
             }
             0xa1 => {
                 // f64.sub
-                let b = ctx.stack.pop_f64().unwrap();
-                let a = ctx.stack.pop_f64().unwrap();
-                ctx.stack.push_f64(a - b);
+                ctx.stack.inplace_bin_op(|a: f64, b: f64| a - b).unwrap();
             }
             0xa2 => {
                 // f64.mul
-                let b = ctx.stack.pop_f64().unwrap();
-                let a = ctx.stack.pop_f64().unwrap();
-                ctx.stack.push_f64(a * b);
+                ctx.stack.inplace_bin_op(|a: f64, b: f64| a * b).unwrap();
             }
             0xa7 => {
                 // i32.wrap_i64
-                let a = ctx.stack.pop_i64().unwrap();
-                ctx.stack.push_i32(i32::try_from(a & 0xffffffff).unwrap());
+                ctx.stack.inplace_unary_op(|a: i64| i32::try_from(a & 0xffffffff).unwrap()).unwrap();
             }
             0xad => {
                 // i64.extend_i32_u
-                let a = ctx.stack.pop_i32().unwrap();
-                ctx.stack.push_i64(i64::from(a));
+                ctx.stack.inplace_unary_op(|a: i32| i64::from(a)).unwrap();
             }
             _ => todo!("opcode {:02x?}", op),
         }
