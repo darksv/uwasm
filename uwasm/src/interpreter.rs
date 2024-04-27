@@ -74,6 +74,11 @@ impl VmStack {
     }
 
     #[inline]
+    pub fn push_f32(&mut self, val: f32) {
+        self.push_bytes(TypeKind::F32, val.to_le_bytes());
+    }
+
+    #[inline]
     pub fn push_f64(&mut self, val: f64) {
         self.push_bytes(TypeKind::F64, val.to_le_bytes());
     }
@@ -463,6 +468,11 @@ pub fn evaluate<'code>(
                 // i64.const <literal>
                 let val = reader.read_usize().unwrap();
                 ctx.stack.push_i64(i64::try_from(val).unwrap());
+            }
+            0x43 => {
+                // f32.const <literal>
+                let val = reader.read_f32().unwrap();
+                ctx.stack.push_f32(val);
             }
             0x44 => {
                 // f64.const <literal>
