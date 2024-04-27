@@ -300,17 +300,21 @@ fn parse_code<'c>(reader: &mut Reader<'c>, ctx: &mut impl Context) -> Result<Cod
     })
 }
 
+#[derive(Debug, PartialEq)]
+enum BlockType {
+    Block,
+    Loop,
+    If,
+    Else,
+}
+
 #[derive(Default)]
 struct ParserState {
-    last_if: Option<usize>,
-    last_else: Option<usize>,
-    last_block: Option<usize>,
-    last_loop: Option<usize>,
-    block_depth: u32,
+    blocks: Vec<(BlockType, usize)>,
     jump_targets: BTreeMap<usize, usize>,
 }
 
-fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: &mut impl Context, state: &mut ParserState) -> Result<ControlFlow<(), ()>, ParserError> {
+fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize, ctx: &mut impl Context, state: &mut ParserState) -> Result<ControlFlow<(), ()>, ParserError> {
     let pos = reader.pos();
     let op = reader.read_u8()?;
     match op {
@@ -327,7 +331,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
             let block_type = reader.read_u8()?;
             writeln!(ctx, "block {:02x}", block_type);
             if !ONLY_PRINT {
-                state.block_depth += 1;
+                state.blocks.push((BlockType::Block, pos));
             }
         }
         0x03 => {
@@ -335,7 +339,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
             writeln!(ctx, "loop");
             let loop_type = reader.read_u8()?;
             if !ONLY_PRINT {
-                state.last_loop = Some(pos);
+                state.blocks.push((BlockType::Loop, pos));
             }
         }
         0x04 => {
@@ -343,35 +347,29 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, start: usize, ctx: 
             writeln!(ctx, "if");
             let ty = reader.read::<TypeKind>()?;
             if !ONLY_PRINT {
-                state.last_if = Some(pos);
+                state.blocks.push((BlockType::If, pos));
             }
         }
         0x05 => {
             // else
             writeln!(ctx, "else");
             if !ONLY_PRINT {
-                state.jump_targets.insert(state.last_if.unwrap(), pos + 1 - start);
-                state.last_else = Some(pos);
+                let (kind, start) = state.blocks.pop().unwrap();
+                assert_eq!(kind, BlockType::If);
+                state.jump_targets.insert(start, pos + 1 - func_offset);
+                state.blocks.push((BlockType::Else, pos));
             }
         }
         0x0b => {
             // end
-            writeln!(ctx, "end");
             if !ONLY_PRINT {
-                if let Some(le) = state.last_else.take() {
-                    state.jump_targets.insert(le, pos + 1 - start);
-                } else if let Some(le) = state.last_block.take() {
-                    state.jump_targets.insert(le, pos + 1 - start);
-                } else if let Some(le) = state.last_loop.take() {
-                    state.jump_targets.insert(le, pos + 1 - start);
+                if let Some((kind, le)) = state.blocks.pop() {
+                    writeln!(ctx, "// end block {:?} @ {:02X}", kind, pos);
+                    state.jump_targets.insert(le, pos + 1 - func_offset);
                 } else {
-                    if state.block_depth == 0 {
-                        // end of function
-                        writeln!(ctx, "// end of function");
-                        return Ok(ControlFlow::Break(()));
-                    } else {
-                        state.block_depth -= 1;
-                    }
+                    // end of function
+                    writeln!(ctx, "// end of function");
+                    return Ok(ControlFlow::Break(()));
                 }
             }
         }
