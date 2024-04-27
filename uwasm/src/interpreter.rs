@@ -33,7 +33,7 @@ pub struct StackFrame<'code> {
     reader: Reader<'code>,
     locals_offset: usize,
     curr_loop_start: Option<usize>,
-    blocks: Vec<(usize, BlockType)>,
+    blocks: Vec<BlockMeta>,
 }
 
 impl<'code> StackFrame<'code> {
@@ -288,6 +288,11 @@ fn copy_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
     locals.resize(locals.len() + non_params_locals_bytes, 0);
 }
 
+struct BlockMeta {
+    body_offset: usize,
+    kind: BlockType,
+}
+
 pub fn evaluate<'code>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
@@ -341,13 +346,19 @@ pub fn evaluate<'code>(
                 // block
                 let ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
-                frame.blocks.push((reader.pos(), BlockType::Block));
+                frame.blocks.push(BlockMeta {
+                    body_offset: reader.pos(),
+                    kind: BlockType::Block,
+                });
             }
             0x03 => {
                 // loop
                 let ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
-                frame.blocks.push((reader.pos(), BlockType::Loop));
+                frame.blocks.push(BlockMeta {
+                    body_offset: reader.pos(),
+                    kind: BlockType::Loop,
+                });
             }
             0x04 => {
                 // if
@@ -383,7 +394,7 @@ pub fn evaluate<'code>(
             }
             0x0b => {
                 // end
-                if let Some((start, BlockType::Loop)) = frame.blocks.last() {
+                if let Some(BlockMeta { body_offset: start, kind: BlockType::Loop }) = frame.blocks.last() {
                     reader.skip_to(*start);
                 } else {
                     frame.blocks.pop();
@@ -393,7 +404,7 @@ pub fn evaluate<'code>(
             0x0c => {
                 // br
                 let depth = reader.read_usize().unwrap();
-                reader.skip_to(frame.blocks[depth].0);
+                reader.skip_to(frame.blocks[depth].body_offset);
                 #[cfg(debug_assertions)]
                 writeln!(x, "taken");
             }
@@ -402,6 +413,7 @@ pub fn evaluate<'code>(
                 let depth = reader.read_usize().unwrap();
                 if ctx.stack.pop_i32().unwrap() == 1 {
                     reader.skip_to(frame.blocks[depth].0);
+                    reader.skip_to(frame.blocks[depth].body_offset);
                     #[cfg(debug_assertions)]
                     writeln!(x, "taken");
                 } else {
