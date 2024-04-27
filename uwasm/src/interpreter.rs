@@ -411,8 +411,7 @@ pub fn evaluate<'code>(
             0x0d => {
                 // br_if
                 let depth = reader.read_usize().unwrap();
-                if ctx.stack.pop_i32().unwrap() == 1 {
-                    reader.skip_to(frame.blocks[depth].0);
+                if ctx.stack.pop_i32().unwrap() != 0 {
                     reader.skip_to(frame.blocks[depth].body_offset);
                     #[cfg(debug_assertions)]
                     writeln!(x, "taken");
