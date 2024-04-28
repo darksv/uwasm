@@ -289,6 +289,7 @@ fn copy_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
 }
 
 struct BlockMeta {
+    offset: usize,
     body_offset: usize,
     kind: BlockType,
 }
@@ -347,6 +348,7 @@ pub fn evaluate<'code>(
                 let ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
                 frame.blocks.push(BlockMeta {
+                    offset: pos,
                     body_offset: reader.pos(),
                     kind: BlockType::Block,
                 });
@@ -356,6 +358,7 @@ pub fn evaluate<'code>(
                 let ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
                 frame.blocks.push(BlockMeta {
+                    offset: pos,
                     body_offset: reader.pos(),
                     kind: BlockType::Loop,
                 });
@@ -394,7 +397,7 @@ pub fn evaluate<'code>(
             }
             0x0b => {
                 // end
-                if let Some(BlockMeta { body_offset: start, kind: BlockType::Loop }) = frame.blocks.last() {
+                if let Some(BlockMeta { offset: _, body_offset: start, kind: BlockType::Loop }) = frame.blocks.last() {
                     reader.skip_to(*start);
                 } else {
                     frame.blocks.pop();
@@ -404,7 +407,7 @@ pub fn evaluate<'code>(
             0x0c => {
                 // br
                 let depth = reader.read_usize().unwrap();
-                reader.skip_to(frame.blocks[depth].body_offset);
+                reader.skip_to(current_func.jump_targets[&frame.blocks[depth].offset]);
                 #[cfg(debug_assertions)]
                 writeln!(x, "taken");
             }
@@ -412,7 +415,7 @@ pub fn evaluate<'code>(
                 // br_if
                 let depth = reader.read_usize().unwrap();
                 if ctx.stack.pop_i32().unwrap() != 0 {
-                    reader.skip_to(frame.blocks[depth].body_offset);
+                    reader.skip_to(current_func.jump_targets[&frame.blocks[depth].offset]);
                     #[cfg(debug_assertions)]
                     writeln!(x, "taken");
                 } else {
