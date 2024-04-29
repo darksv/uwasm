@@ -1,4 +1,5 @@
 #![feature(debug_closure_helpers)]
+#![feature(split_at_checked)]
 #![no_std]
 
 extern crate alloc;

@@ -1,6 +1,7 @@
 use alloc::fmt;
 use alloc::vec::Vec;
 use core::fmt::Formatter;
+use core::mem::offset_of;
 
 use crate::{Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
 use crate::operand::{EvaluationError, Operand};
@@ -308,10 +309,15 @@ impl Memory {
         unsafe { core::mem::transmute(data) }
     }
 
-    fn read_f32(&self, offset: usize) -> Option<f32> {
+    #[inline]
+    fn read_bytes_at<const N: usize>(&self, offset: usize) -> Option<[u8; N]> {
         let (_, data) = self.data.split_at_checked(offset)?;
-        let (raw, _) = data.split_first_chunk()?;
-        Some(f32::from_ne_bytes(*raw))
+        let (&raw, _) = data.split_first_chunk()?;
+        Some(raw)
+    }
+
+    fn read_f32(&self, offset: usize) -> Option<f32> {
+        self.read_bytes_at(offset).map(f32::from_ne_bytes)
     }
 }
 
