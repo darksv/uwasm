@@ -57,7 +57,7 @@ impl Operand for f32 {
     }
 
     fn push(stack: &mut VmStack, value: Self) {
-        todo!()
+        stack.push_f32(value)
     }
 }
 

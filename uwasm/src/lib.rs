@@ -734,7 +734,7 @@ mod tests {
             parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            evaluate(&mut ctx, &module, 0, &(i as f64).to_le_bytes(), &mut MyCtx);
+            evaluate(&mut ctx, &module, 0, &(i as f64).to_le_bytes(), &[], &mut MyCtx);
 
             assert_eq!(ctx.stack.pop_f64(), Some(native_factorial(i) as f64));
         }
@@ -747,7 +747,7 @@ mod tests {
         let mut ctx = VmContext::new();
         for i in 0..10i32 {
             for j in 10..20i32 {
-                evaluate(&mut ctx, &module, 1, &[i.to_le_bytes(), j.to_le_bytes()].concat(), &mut MyCtx);
+                evaluate(&mut ctx, &module, 1, &[i.to_le_bytes(), j.to_le_bytes()].concat(), &[], &mut MyCtx);
                 assert_eq!(ctx.stack.pop_i32(), Some(j - i));
             }
         }

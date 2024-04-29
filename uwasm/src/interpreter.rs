@@ -294,11 +294,37 @@ struct BlockMeta {
     kind: BlockType,
 }
 
+#[repr(transparent)]
+pub struct Memory {
+    data: [u8],
+}
+
+impl Memory {
+    pub fn from_slice(data: &[u8]) -> &Self {
+        unsafe { core::mem::transmute(data) }
+    }
+
+    pub fn from_slice_mut(data: &mut [u8]) -> &mut Self {
+        unsafe { core::mem::transmute(data) }
+    }
+
+    fn read_f32(&self, offset: usize) -> Option<f32> {
+        Some(unsafe {
+            self.data
+                .as_ptr()
+                .cast::<f32>()
+                .offset(offset as _)
+                .read()
+        })
+    }
+}
+
 pub fn evaluate<'code>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
     func_idx: usize,
     args: &[u8],
+    memory: &[u8],
     #[allow(unused)]
     x: &mut impl Context,
 ) {
@@ -473,6 +499,12 @@ pub fn evaluate<'code>(
                     &mut ctx.locals[frame.locals_offset..]
                 ).copy_from(&mut ctx.stack, local_idx as usize, &current_func);
             }
+            0x2a => {
+                // f32.load
+                let align = reader.read_usize().unwrap();
+                let offset = reader.read_usize().unwrap();
+                ctx.stack.push_f32(Memory::from_slice(memory).read_f32(offset).unwrap());
+            }
             0x41 => {
                 // i32.const <literal>
                 let val = reader.read_isize().unwrap();
@@ -584,6 +616,10 @@ pub fn evaluate<'code>(
             0x88 => {
                 // i64.shr_u
                 ctx.stack.inplace_bin_op(|a: u64, b: u64| a >> b).unwrap();
+            }
+            0x92 => {
+                // f32.add
+                ctx.stack.inplace_bin_op(|a: f32, b: f32| a + b).unwrap();
             }
             0xa1 => {
                 // f64.sub
