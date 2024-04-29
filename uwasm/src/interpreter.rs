@@ -309,13 +309,9 @@ impl Memory {
     }
 
     fn read_f32(&self, offset: usize) -> Option<f32> {
-        Some(unsafe {
-            self.data
-                .as_ptr()
-                .cast::<f32>()
-                .offset(offset as _)
-                .read()
-        })
+        let (_, data) = self.data.split_at_checked(offset)?;
+        let (raw, _) = data.split_first_chunk()?;
+        Some(f32::from_ne_bytes(*raw))
     }
 }
 
