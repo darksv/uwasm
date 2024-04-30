@@ -1,7 +1,6 @@
 use alloc::fmt;
 use alloc::vec::Vec;
 use core::fmt::Formatter;
-use core::mem::offset_of;
 
 use crate::{Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
 use crate::operand::{EvaluationError, Operand};
@@ -316,8 +315,20 @@ impl Memory {
         Some(raw)
     }
 
+    fn read_i32(&self, offset: usize) -> Option<i32> {
+        self.read_bytes_at(offset).map(i32::from_ne_bytes)
+    }
+
+    fn read_i64(&self, offset: usize) -> Option<i64> {
+        self.read_bytes_at(offset).map(i64::from_ne_bytes)
+    }
+
     fn read_f32(&self, offset: usize) -> Option<f32> {
         self.read_bytes_at(offset).map(f32::from_ne_bytes)
+    }
+
+    fn read_f64(&self, offset: usize) -> Option<f64> {
+        self.read_bytes_at(offset).map(f64::from_ne_bytes)
     }
 }
 
@@ -501,11 +512,41 @@ pub fn evaluate<'code>(
                     &mut ctx.locals[frame.locals_offset..]
                 ).copy_from(&mut ctx.stack, local_idx as usize, &current_func);
             }
-            0x2a => {
-                // f32.load
+            0x28..=0x35 => {
+                // i32.load     0x28
+                // i64.load     0x29
+                // f32.load     0x2a
+                // f64.load     0x2b
+                // i32.load8_s  0x2c
+                // i32.load8_u  0x2d
+                // i32.load16_s 0x2e
+                // i32.load16_u 0x2f
+                // i64.load8_s 	0x30
+                // i64.load8_u 	0x31
+                // i64.load16_s 0x32
+                // i64.load16_u 0x33
+                // i64.load32_s 0x34
+                // i64.load32_u 0x35
                 let align = reader.read_usize().unwrap();
                 let offset = reader.read_usize().unwrap();
-                ctx.stack.push_f32(Memory::from_slice(memory).read_f32(offset).unwrap());
+                let mem = Memory::from_slice(memory);
+                match op {
+                    0x28 => ctx.stack.push_i32(mem.read_i32(offset).unwrap()),
+                    0x29 => ctx.stack.push_i64(mem.read_i64(offset).unwrap()),
+                    0x2a => ctx.stack.push_f32(mem.read_f32(offset).unwrap()),
+                    0x2b => ctx.stack.push_f64(mem.read_f64(offset).unwrap()),
+                    0x2c => todo!(),
+                    0x2d => todo!(),
+                    0x2e => todo!(),
+                    0x2f => todo!(),
+                    0x30 => todo!(),
+                    0x31 => todo!(),
+                    0x32 => todo!(),
+                    0x33 => todo!(),
+                    0x34 => todo!(),
+                    0x35 => todo!(),
+                    _ => unreachable!(),
+                }
             }
             0x41 => {
                 // i32.const <literal>

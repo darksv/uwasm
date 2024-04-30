@@ -10,6 +10,7 @@ use core::fmt;
 use core::ops::ControlFlow;
 
 pub use crate::interpreter::{evaluate, StackFrame, UntypedMemorySpan, VmContext};
+use crate::interpreter::Memory;
 pub use crate::parser::ParserError;
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 use crate::str::ByteStr;
@@ -444,17 +445,41 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             let global_idx = reader.read_usize()?;
             writeln!(ctx, "global.set {}", global_idx);
         }
-        0x2a => {
-            // f32.load
+        0x28..=0x35 => {
+            // i32.load     0x28
+            // i64.load     0x29
+            // f32.load     0x2a
+            // f64.load     0x2b
+            // i32.load8_s  0x2c
+            // i32.load8_u  0x2d
+            // i32.load16_s 0x2e
+            // i32.load16_u 0x2f
+            // i64.load8_s 	0x30
+            // i64.load8_u 	0x31
+            // i64.load16_s 0x32
+            // i64.load16_u 0x33
+            // i64.load32_s 0x34
+            // i64.load32_u 0x35
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "f32.load {} {}", align, offset);
-        }
-        0x30 => {
-            // i64.load8_s
-            let align = reader.read_usize()?;
-            let offset = reader.read_usize()?;
-            writeln!(ctx, "i64.load8_s {} {}", align, offset);
+            let name = match op {
+                0x28 => "i32",
+                0x29 => "i64",
+                0x2a => "f32",
+                0x2b => "f64",
+                0x2c => "i32.load8_s",
+                0x2d => "i32.load8_u",
+                0x2e => "i32.load16_s",
+                0x2f => "i32.load16_u",
+                0x30 => "i64.load8_s",
+                0x31 => "i64.load8_u",
+                0x32 => "i64.load16_s",
+                0x33 => "i64.load16_u",
+                0x34 => "i64.load32_s",
+                0x35 => "i64.load32_u",
+                _ => unreachable!(),
+            };
+            writeln!(ctx, "{name} align={align} offset={offset}");
         }
         0x36 => {
             // i32.store
