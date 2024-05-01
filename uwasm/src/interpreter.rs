@@ -527,8 +527,9 @@ pub fn evaluate<'code>(
                 // i64.load16_u 0x33
                 // i64.load32_s 0x34
                 // i64.load32_u 0x35
+                let idx = ctx.stack.pop_u32().unwrap() as usize;
                 let align = reader.read_usize().unwrap();
-                let offset = reader.read_usize().unwrap();
+                let offset = reader.read_usize().unwrap() + idx;
                 let mem = Memory::from_slice(memory);
                 match op {
                     0x28 => ctx.stack.push_i32(mem.read_i32(offset).unwrap()),
