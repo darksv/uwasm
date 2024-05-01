@@ -783,4 +783,15 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn sum_array_of_f32() {
+        let module =
+            parse(include_bytes!("../../tests/sum_array.wasm"), &mut MyCtx).expect("parse module");
+        let mut ctx = VmContext::new();
+        let data = [1.23f32, 4.56];
+        let data = unsafe { core::slice::from_raw_parts(data.as_ptr().cast(), data.len() * 4) };
+        evaluate(&mut ctx, &module, 0, &[0u32.to_le_bytes(), 2u32.to_le_bytes()].concat(), data, &mut MyCtx);
+        assert_eq!(ctx.stack.pop_f32(), Some(5.79));
+    }
 }

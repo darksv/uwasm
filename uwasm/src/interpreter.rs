@@ -23,6 +23,7 @@ impl VmContext<'_> {
     }
 }
 
+#[derive(Debug)]
 enum BlockType {
     Block,
     Loop,
@@ -288,6 +289,7 @@ fn copy_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
     locals.resize(locals.len() + non_params_locals_bytes, 0);
 }
 
+#[derive(Debug)]
 struct BlockMeta {
     offset: usize,
     body_offset: usize,
@@ -436,25 +438,40 @@ pub fn evaluate<'code>(
             }
             0x0b => {
                 // end
-                if let Some(BlockMeta { offset: _, body_offset: start, kind: BlockType::Loop }) = frame.blocks.last() {
-                    reader.skip_to(*start);
+                if let Some(block) = frame.blocks.pop() {
+                    #[cfg(debug_assertions)]
+                    writeln!(x, "end block {:?}", block.kind);
                 } else {
-                    frame.blocks.pop();
+                    #[cfg(debug_assertions)]
+                    writeln!(x, "exit function");
                 }
                 continue;
             }
             0x0c => {
                 // br
                 let depth = reader.read_usize().unwrap();
-                reader.skip_to(current_func.jump_targets[&frame.blocks[depth].offset]);
+                let block_idx = frame.blocks.len() - 1 - depth;
+                reader.skip_to(current_func.jump_targets[&frame.blocks[block_idx].offset] - 1);
+                // skip blocks that we are no longer executing due to the jump
+                // TODO: check if this is correct
+                frame.blocks.drain(block_idx + 1..);
                 #[cfg(debug_assertions)]
                 writeln!(x, "taken");
             }
             0x0d => {
                 // br_if
                 let depth = reader.read_usize().unwrap();
+                let block_idx = frame.blocks.len() - 1 - depth;
+                let block = &frame.blocks[block_idx];
                 if ctx.stack.pop_i32().unwrap() != 0 {
-                    reader.skip_to(current_func.jump_targets[&frame.blocks[depth].offset]);
+                    let target = match block.kind {
+                        BlockType::Block => current_func.jump_targets[&block.offset] - 1,
+                        BlockType::Loop => block.body_offset
+                    };
+                    reader.skip_to(target);
+                    // skip blocks that we are no longer executing due to the jump
+                    // TODO: check if this is correct
+                    frame.blocks.drain(block_idx + 1..);
                     #[cfg(debug_assertions)]
                     writeln!(x, "taken");
                 } else {
