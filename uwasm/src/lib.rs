@@ -368,6 +368,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
         }
         0x0b => {
             // end
+            writeln!(ctx, "end");
             if !ONLY_PRINT {
                 if let Some(BlockMeta { kind, offset: start_offset }) = state.blocks.pop() {
                     writeln!(ctx, "// end block {:?} @ {:02X}", kind, pos);
