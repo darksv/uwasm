@@ -10,7 +10,6 @@ use core::fmt;
 use core::ops::ControlFlow;
 
 pub use crate::interpreter::{evaluate, StackFrame, UntypedMemorySpan, VmContext};
-use crate::interpreter::Memory;
 pub use crate::parser::ParserError;
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 use crate::str::ByteStr;
@@ -310,9 +309,14 @@ enum BlockType {
     Else,
 }
 
+struct BlockMeta {
+    kind: BlockType,
+    offset: usize,
+}
+
 #[derive(Default)]
 struct ParserState {
-    blocks: Vec<(BlockType, usize)>,
+    blocks: Vec<BlockMeta>,
     jump_targets: BTreeMap<usize, usize>,
 }
 
@@ -333,7 +337,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             let block_type = reader.read_u8()?;
             writeln!(ctx, "block {:02x}", block_type);
             if !ONLY_PRINT {
-                state.blocks.push((BlockType::Block, pos));
+                state.blocks.push(BlockMeta { kind: BlockType::Block, offset: pos });
             }
         }
         0x03 => {
@@ -341,7 +345,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             writeln!(ctx, "loop");
             let loop_type = reader.read_u8()?;
             if !ONLY_PRINT {
-                state.blocks.push((BlockType::Loop, pos));
+                state.blocks.push(BlockMeta { kind: BlockType::Loop, offset: pos });
             }
         }
         0x04 => {
@@ -349,25 +353,25 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             writeln!(ctx, "if");
             let ty = reader.read::<TypeKind>()?;
             if !ONLY_PRINT {
-                state.blocks.push((BlockType::If, pos));
+                state.blocks.push(BlockMeta { kind: BlockType::If, offset: pos });
             }
         }
         0x05 => {
             // else
             writeln!(ctx, "else");
             if !ONLY_PRINT {
-                let (kind, start) = state.blocks.pop().unwrap();
+                let BlockMeta { kind, offset } = state.blocks.pop().unwrap();
                 assert_eq!(kind, BlockType::If);
-                state.jump_targets.insert(start, pos + 1 - func_offset);
-                state.blocks.push((BlockType::Else, pos));
+                state.jump_targets.insert(offset, pos + 1 - func_offset);
+                state.blocks.push(BlockMeta { kind: BlockType::Else, offset: pos });
             }
         }
         0x0b => {
             // end
             if !ONLY_PRINT {
-                if let Some((kind, le)) = state.blocks.pop() {
+                if let Some(BlockMeta { kind, offset: start_offset }) = state.blocks.pop() {
                     writeln!(ctx, "// end block {:?} @ {:02X}", kind, pos);
-                    state.jump_targets.insert(le, pos + 1 - func_offset);
+                    state.jump_targets.insert(start_offset, pos + 1 - func_offset);
                 } else {
                     // end of function
                     writeln!(ctx, "// end of function");
