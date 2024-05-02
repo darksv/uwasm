@@ -506,6 +506,17 @@ pub fn evaluate<'code>(
                 copy_locals(&mut ctx.locals, params_mem, current_func);
                 ctx.stack.pop_many(len_locals);
             }
+            0x1b => {
+                // select
+                let cond = ctx.stack.pop_i32().unwrap();
+                let a = ctx.stack.pop_i32().unwrap();
+                let b = ctx.stack.pop_i32().unwrap();
+                let res = match cond {
+                    0 => a,
+                    _ => b,
+                };
+                ctx.stack.push_i32(res);
+            }
             0x20 => {
                 // local.get <local>
                 let locals = UntypedMemorySpan::from_slice(
