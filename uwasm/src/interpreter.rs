@@ -698,6 +698,10 @@ pub fn evaluate<'code>(
                 // i64.extend_i32_u
                 ctx.stack.inplace_unary_op(|a: i32| i64::from(a)).unwrap();
             }
+            0xbe => {
+                // f32.reinterpret_i32
+                ctx.stack.inplace_unary_op(|a: i32| f32::from_ne_bytes(a.to_ne_bytes())).unwrap();
+            }
             _ => todo!("opcode {:02x?}", op),
         }
     }

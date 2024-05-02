@@ -727,6 +727,10 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             // i64.extend_i32_u
             writeln!(ctx, "i64.extend_i32_u");
         }
+        0xbe => {
+            // f32.reinterpret_i32
+            writeln!(ctx, "f32.reinterpret_i32");
+        }
         0xc0 => {
             // i32.extend8_s
             writeln!(ctx, "i32.extend8_s");
