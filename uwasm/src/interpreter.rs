@@ -440,7 +440,7 @@ pub fn evaluate<'code>(
                 // end
                 if let Some(block) = frame.blocks.pop() {
                     #[cfg(debug_assertions)]
-                    writeln!(x, "end block {:?}", block.kind);
+                    writeln!(x, "end {:?}", block.kind);
                 } else {
                     #[cfg(debug_assertions)]
                     writeln!(x, "exit function");

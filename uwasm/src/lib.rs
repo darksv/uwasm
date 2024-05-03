@@ -371,7 +371,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             writeln!(ctx, "end");
             if !ONLY_PRINT {
                 if let Some(BlockMeta { kind, offset: start_offset }) = state.blocks.pop() {
-                    writeln!(ctx, "// end block {:?} @ {:02X}", kind, pos);
+                    writeln!(ctx, "// end {:?} @ {:02X}", kind, pos);
                     state.jump_targets.insert(start_offset, pos + 1 - func_offset);
                 } else {
                     // end of function
