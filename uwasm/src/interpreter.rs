@@ -498,7 +498,7 @@ pub fn evaluate<'code>(
                 ctx.call_stack.push(StackFrame {
                     func_idx,
                     reader: Reader::new(module.functions[func_idx].code),
-                    locals_offset: ctx.stack.data.len() - len_locals,
+                    locals_offset: ctx.locals.len(),
                     curr_loop_start: None,
                     blocks: Vec::new(),
                 });
