@@ -66,6 +66,8 @@ pub struct FuncBody<'code> {
     locals_types: Vec<TypeKind>,
     // params + locals
     locals_offsets: Vec<usize>,
+    // total length of parameters that this function accepts
+    params_len_in_bytes: usize,
 }
 
 impl fmt::Debug for FuncBody<'_> {
@@ -259,7 +261,11 @@ pub fn parse<'code>(
                     writeln!(ctx, "offsets={:?}", offsets);
 
                     let CodeInfo { offset, code, jump_targets } = parse_code(&mut reader, ctx)?;
-
+                    let params_len_in_bytes = signature
+                        .params
+                        .iter()
+                        .map(|t| t.len_bytes())
+                        .sum();
                     functions.push(FuncBody {
                         name: None,
                         signature,
@@ -268,6 +274,7 @@ pub fn parse<'code>(
                         offset,
                         code,
                         jump_targets,
+                        params_len_in_bytes,
                     })
                 }
             }

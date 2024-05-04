@@ -488,13 +488,6 @@ pub fn evaluate<'code>(
                 let func_idx = reader.read_usize().unwrap();
                 #[cfg(debug_assertions)]
                 writeln!(x, "calling {}", func_idx);
-                let len_locals = current_func
-                    .signature
-                    .params
-                    .iter()
-                    .map(|t| t.len_bytes())
-                    .sum();
-
                 ctx.call_stack.push(StackFrame {
                     func_idx,
                     reader: Reader::new(module.functions[func_idx].code),
@@ -502,9 +495,9 @@ pub fn evaluate<'code>(
                     curr_loop_start: None,
                     blocks: Vec::new(),
                 });
-                let params_mem = &ctx.stack.data[ctx.stack.data.len() - len_locals..];
+                let params_mem = &ctx.stack.data[ctx.stack.data.len() - current_func.params_len_in_bytes..];
                 copy_locals(&mut ctx.locals, params_mem, current_func);
-                ctx.stack.pop_many(len_locals);
+                ctx.stack.pop_many(current_func.params_len_in_bytes);
             }
             0x1b => {
                 // select
