@@ -317,8 +317,28 @@ impl Memory {
         Some(raw)
     }
 
+    fn read_i8(&self, offset: usize) -> Option<i8> {
+        self.read_bytes_at(offset).map(i8::from_ne_bytes)
+    }
+
+    fn read_u8(&self, offset: usize) -> Option<u8> {
+        self.read_bytes_at(offset).map(u8::from_ne_bytes)
+    }
+
+    fn read_i16(&self, offset: usize) -> Option<i16> {
+        self.read_bytes_at(offset).map(i16::from_ne_bytes)
+    }
+
+    fn read_u16(&self, offset: usize) -> Option<u16> {
+        self.read_bytes_at(offset).map(u16::from_ne_bytes)
+    }
+
     fn read_i32(&self, offset: usize) -> Option<i32> {
         self.read_bytes_at(offset).map(i32::from_ne_bytes)
+    }
+
+    fn read_u32(&self, offset: usize) -> Option<u32> {
+        self.read_bytes_at(offset).map(u32::from_ne_bytes)
     }
 
     fn read_i64(&self, offset: usize) -> Option<i64> {
@@ -557,16 +577,16 @@ pub fn evaluate<'code>(
                     0x29 => ctx.stack.push_i64(mem.read_i64(offset).unwrap()),
                     0x2a => ctx.stack.push_f32(mem.read_f32(offset).unwrap()),
                     0x2b => ctx.stack.push_f64(mem.read_f64(offset).unwrap()),
-                    0x2c => todo!(),
-                    0x2d => todo!(),
-                    0x2e => todo!(),
-                    0x2f => todo!(),
-                    0x30 => todo!(),
-                    0x31 => todo!(),
-                    0x32 => todo!(),
-                    0x33 => todo!(),
-                    0x34 => todo!(),
-                    0x35 => todo!(),
+                    0x2c => ctx.stack.push_i32(mem.read_i8(offset).unwrap() as i32),
+                    0x2d => ctx.stack.push_i32(mem.read_u8(offset).unwrap() as i32),
+                    0x2e => ctx.stack.push_i32(mem.read_i16(offset).unwrap() as i32),
+                    0x2f => ctx.stack.push_i32(mem.read_u16(offset).unwrap() as i32),
+                    0x30 => ctx.stack.push_i64(mem.read_i8(offset).unwrap() as i64),
+                    0x31 => ctx.stack.push_i64(mem.read_u8(offset).unwrap() as i64),
+                    0x32 => ctx.stack.push_i64(mem.read_i16(offset).unwrap() as i64),
+                    0x33 => ctx.stack.push_i64(mem.read_u16(offset).unwrap() as i64),
+                    0x34 => ctx.stack.push_i64(mem.read_i32(offset).unwrap() as i64),
+                    0x35 => ctx.stack.push_i64(mem.read_u32(offset).unwrap() as i64),
                     _ => unreachable!(),
                 }
             }
