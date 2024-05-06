@@ -1,4 +1,5 @@
 use core::fmt;
+use core::fmt::{Display, Formatter};
 use crate::str::ByteStr;
 
 #[derive(Clone)]
@@ -269,4 +270,14 @@ pub enum ParserError {
     InvalidValue { offset: usize, found: u8 },
     UnexpectedBytes { offset: usize },
     NotEnoughBytes { offset: usize },
+}
+
+impl Display for ParserError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl core::error::Error for ParserError {
+
 }

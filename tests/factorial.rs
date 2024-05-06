@@ -8,13 +8,17 @@ unsafe fn panic(_: &PanicInfo) -> ! {
     unsafe { core::hint::unreachable_unchecked() }
 }
 
-#[export_name = "factorial"]
-pub fn factorial(n: u32, acc: u32) -> u32 {
+fn factorial(n: u32, acc: u32) -> u32 {
     if n == 0 {
         acc
     } else {
         factorial(n - 1, n * acc)
     }
+}
+
+#[export_name = "entry"]
+pub fn entry(n: u32, acc: u32) -> u32 {
+    factorial(n, acc)
 }
 
 // rustc --target=wasm32-unknown-unknown foo.rs -O -C panic=abort

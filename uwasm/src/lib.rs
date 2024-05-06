@@ -1,5 +1,6 @@
 #![feature(debug_closure_helpers)]
 #![feature(split_at_checked)]
+#![feature(error_in_core)]
 #![no_std]
 
 extern crate alloc;
@@ -10,9 +11,9 @@ use core::fmt;
 use core::ops::ControlFlow;
 
 pub use crate::interpreter::{evaluate, StackFrame, UntypedMemorySpan, VmContext};
-pub use crate::parser::ParserError;
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
-use crate::str::ByteStr;
+pub use crate::parser::ParserError;
+pub use crate::str::ByteStr;
 
 mod interpreter;
 mod parser;
@@ -55,7 +56,7 @@ pub struct WasmModule<'code> {
 
 pub struct FuncBody<'code> {
     #[allow(unused)]
-    name: Option<&'code ByteStr>,
+    pub name: Option<&'code ByteStr>,
     signature: FuncSignature,
     offset: usize,
     pub code: &'code [u8],
@@ -757,8 +758,9 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
 
 #[cfg(test)]
 mod tests {
-    use crate::{evaluate, parse, Context, VmContext};
     use core::fmt::Arguments;
+
+    use crate::{Context, evaluate, parse, VmContext};
 
     struct MyCtx;
 

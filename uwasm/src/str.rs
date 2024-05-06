@@ -1,7 +1,27 @@
-use core::fmt;
+use core::{fmt, ops};
 
 #[repr(transparent)]
 pub struct ByteStr([u8]);
+
+impl ByteStr {
+    pub fn from_bytes(data: &[u8]) -> &ByteStr {
+        // SAFETY: ByteStr has the same layout as [u8]
+        unsafe { core::mem::transmute(data) }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        // SAFETY: ByteStr has the same layout as [u8]
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl ops::Deref for ByteStr {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_bytes()
+    }
+}
 
 impl fmt::Display for ByteStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
