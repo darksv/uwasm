@@ -142,9 +142,7 @@ fn main() -> anyhow::Result<()> {
             let module = parse(&content, &mut MyCtx)?;
             dbg!(&module);
 
-            let idx = module.functions
-                .iter()
-                .position(|f| f.name.is_some_and(|b| b.as_bytes() == input.name.as_bytes()))
+            let idx = module.get_function_index_by_name(input.name)
                 .context("selecting entry function")?;
 
             let mut mem = Vec::new();

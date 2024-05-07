@@ -41,7 +41,7 @@ impl<'code> StackFrame<'code> {
     pub fn new(module: &'code WasmModule, idx: usize, locals_offset: usize) -> Self {
         Self {
             func_idx: idx,
-            reader: Reader::new(module.functions[idx].code),
+            reader: Reader::new(module.get_function_by_index(idx).unwrap().code),
             locals_offset,
             curr_loop_start: None,
             blocks: Vec::new(),
@@ -364,7 +364,7 @@ pub fn evaluate<'code>(
     x: &mut impl Context,
 ) {
     ctx.stack.data.clear();
-    copy_locals(&mut ctx.locals, args, &module.functions[func_idx]);
+    copy_locals(&mut ctx.locals, args, module.get_function_by_index(func_idx).as_ref().unwrap());
     ctx.call_stack.clear();
     ctx.call_stack.push(StackFrame::new(
         module,
@@ -373,7 +373,7 @@ pub fn evaluate<'code>(
     ));
 
     while let Some(frame) = ctx.call_stack.last_mut() {
-        let current_func = &module.functions[frame.func_idx];
+        let current_func = module.get_function_by_index(frame.func_idx).unwrap();
         let reader = &mut frame.reader;
         let pos = current_func.offset + reader.pos();
 
@@ -510,7 +510,7 @@ pub fn evaluate<'code>(
                 writeln!(x, "calling {}", func_idx);
                 ctx.call_stack.push(StackFrame {
                     func_idx,
-                    reader: Reader::new(module.functions[func_idx].code),
+                    reader: Reader::new(module.get_function_by_index(func_idx).unwrap().code),
                     locals_offset: ctx.locals.len(),
                     curr_loop_start: None,
                     blocks: Vec::new(),

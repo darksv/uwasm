@@ -51,12 +51,22 @@ pub trait Context {
 
 #[derive(Debug)]
 pub struct WasmModule<'code> {
-    pub functions: Vec<FuncBody<'code>>,
+    functions: Vec<Func<'code>>,
+}
+
+impl<'code> WasmModule<'code> {
+    fn get_function_by_index(&self, index: usize) -> Option<&FuncBody<'code>> {
+        self.functions.get(index)?.body.as_ref()
+    }
+
+    pub fn get_function_index_by_name(&self, name: &ByteStr) -> Option<usize> {
+        self.functions
+            .iter()
+            .position(|f| f.name.is_some_and(|b| b.as_bytes() == name.as_bytes()))
+    }
 }
 
 pub struct FuncBody<'code> {
-    #[allow(unused)]
-    pub name: Option<&'code ByteStr>,
     signature: FuncSignature,
     offset: usize,
     pub code: &'code [u8],
@@ -99,6 +109,13 @@ impl<'code> FuncBody<'code> {
     }
 }
 
+#[derive(Debug)]
+pub struct Func<'code> {
+    body: Option<FuncBody<'code>>,
+    pub name: Option<&'code ByteStr>,
+    signature: Option<usize>,
+}
+
 #[allow(unused)]
 pub fn parse<'code>(
     code: &'code [u8],
@@ -107,10 +124,8 @@ pub fn parse<'code>(
     let mut reader = Reader::new(code);
     reader.expect_bytes(b"\x00asm")?;
 
-    let mut exported = Vec::new();
-    let mut functions: Vec<FuncBody> = Vec::new();
+    let mut functions: Vec<_> = Vec::new();
     let mut signatures = Vec::new();
-    let mut func_signatures = Vec::new();
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -157,7 +172,11 @@ pub fn parse<'code>(
                 for func_idx in 0..num_funcs {
                     let sig_index = reader.read_usize()?;
                     writeln!(ctx, "Function #{func_idx} | signature #{sig_index}: {:?}", &signatures[sig_index]);
-                    func_signatures.push(sig_index);
+                    functions.push(Func {
+                        body: None,
+                        name: None,
+                        signature: Some(sig_index),
+                    });
                 }
             }
             SectionKind::Table => {
@@ -200,7 +219,10 @@ pub fn parse<'code>(
                         ctx,
                         "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}"
                     );
-                    exported.push(name);
+                    if export_kind == 0 {
+                        // function
+                        functions[export_func_idx].name = Some(name);
+                    }
                 }
             }
             SectionKind::Elem => {
@@ -233,8 +255,8 @@ pub fn parse<'code>(
                 writeln!(ctx, "Found code section");
 
                 let num_funcs = reader.read_usize()?;
-                for _ in 0..num_funcs {
-                    let signature = signatures[func_signatures[functions.len()]].clone();
+                for func_idx in 0..num_funcs {
+                    let signature = signatures[functions[func_idx].signature.unwrap()].clone();
 
                     let body_len = reader.read_usize()?;
                     let locals_num = reader.read_usize()?;
@@ -267,8 +289,7 @@ pub fn parse<'code>(
                         .iter()
                         .map(|t| t.len_bytes())
                         .sum();
-                    functions.push(FuncBody {
-                        name: None,
+                    functions[func_idx].body = Some(FuncBody {
                         signature,
                         locals_offsets: offsets,
                         locals_types,
@@ -276,7 +297,7 @@ pub fn parse<'code>(
                         code,
                         jump_targets,
                         params_len_in_bytes,
-                    })
+                    });
                 }
             }
         }
