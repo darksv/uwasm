@@ -34,10 +34,15 @@ impl<'data> InputParser<'data> {
         }
     }
 
+    fn has_data(&self) -> bool {
+        self.pos < self.data.len()
+    }
+
+    #[must_use]
     fn take_while(&mut self, f: impl Fn(u8) -> bool) -> &'data ByteStr {
         let start = self.pos;
         let mut end = self.pos;
-        while self.pos < self.data.len() {
+        while self.has_data() {
             if f(self.data[self.pos]) {
                 self.pos += 1;
                 end = self.pos;
@@ -48,49 +53,38 @@ impl<'data> InputParser<'data> {
         ByteStr::from_bytes(&self.data[start..end])
     }
 
-    fn consume(&mut self, expected: u8) -> bool {
-        if self.data[self.pos] == expected {
-            self.pos += 1;
+    fn consume<const N: usize>(&mut self, expected: &[u8; N]) -> bool {
+        if &self.data[self.pos..][..N] == expected {
+            self.pos += N;
             return true;
         }
         false
     }
 
-    fn skip_whitespace(&mut self) {
-        self.take_while(|c| c.is_ascii_whitespace());
+    fn consume_whitespace(&mut self) {
+        _ = self.take_while(|c| c.is_ascii_whitespace());
     }
 }
 
-enum Type {
-    U32,
-    I32,
-}
-
-// type_name.as_bytes() {
-// b"u32" => Type::U32,
-// b"i32" => Type::I32,
-// }
-
 fn parse_input(input: &[u8]) -> anyhow::Result<Signature<'_>> {
-    for line in input.split(|c| *c == b'\n') {
-        let mut parser = InputParser::new(line);
+    let mut parser = InputParser::new(input);
+    while parser.has_data() {
         let name = parser.take_while(|c| c != b'(');
-        parser.consume(b'(');
+        parser.consume(b"(");
         let mut args = Vec::new();
-        while !parser.consume(b')') {
-            parser.skip_whitespace();
+        while !parser.consume(b")") {
+            parser.consume_whitespace();
             let type_name = parser.take_while(|c| c.is_ascii_alphanumeric());
             if type_name.is_empty() {
                 break;
             }
-            parser.skip_whitespace();
-            parser.consume(b',');
+            parser.consume_whitespace();
+            parser.consume(b",");
             args.push(type_name);
         }
-        parser.skip_whitespace();
-        parser.consume(b'-');
-        parser.consume(b'>');
-        parser.skip_whitespace();
+        parser.consume_whitespace();
+        parser.consume(b"->");
+        parser.consume_whitespace();
         let type_name = parser.take_while(|c| c.is_ascii_alphanumeric());
 
         return Ok(Signature {
@@ -99,8 +93,7 @@ fn parse_input(input: &[u8]) -> anyhow::Result<Signature<'_>> {
             returns: type_name
         });
     }
-
-    unimplemented!()
+    todo!();
 }
 
 fn main() -> anyhow::Result<()> {
