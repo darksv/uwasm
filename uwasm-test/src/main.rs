@@ -21,6 +21,13 @@ struct Signature<'s> {
     returns: &'s ByteStr,
 }
 
+#[derive(Debug)]
+struct Case<'s> {
+    name: &'s ByteStr,
+    args: Vec<&'s ByteStr>,
+    expected: &'s ByteStr,
+}
+
 struct InputParser<'data> {
     data: &'data [u8],
     pos: usize,
@@ -54,6 +61,10 @@ impl<'data> InputParser<'data> {
     }
 
     fn consume<const N: usize>(&mut self, expected: &[u8; N]) -> bool {
+        if self.pos + N > self.data.len() {
+            return false;
+        }
+
         if &self.data[self.pos..][..N] == expected {
             self.pos += N;
             return true;
@@ -66,9 +77,10 @@ impl<'data> InputParser<'data> {
     }
 }
 
-fn parse_input(input: &[u8]) -> anyhow::Result<Signature<'_>> {
+fn parse_input(input: &[u8]) -> anyhow::Result<(Signature<'_>, Vec<Case<'_>>)> {
     let mut parser = InputParser::new(input);
-    while parser.has_data() {
+    let signature;
+    if parser.has_data() {
         let name = parser.take_while(|c| c != b'(');
         parser.consume(b"(");
         let mut args = Vec::new();
@@ -87,13 +99,43 @@ fn parse_input(input: &[u8]) -> anyhow::Result<Signature<'_>> {
         parser.consume_whitespace();
         let type_name = parser.take_while(|c| c.is_ascii_alphanumeric());
 
-        return Ok(Signature {
+        signature = Signature {
             name,
             args,
-            returns: type_name
+            returns: type_name,
+        };
+    } else {
+        bail!("no data");
+    }
+
+    let mut cases = Vec::new();
+    while parser.has_data() {
+        let name = parser.take_while(|c| c != b'(');
+        parser.consume(b"(");
+        let mut args = Vec::new();
+        while !parser.consume(b")") {
+            parser.consume_whitespace();
+            let type_name = parser.take_while(|c| matches!(c, b'0'..=b'9' | b'-'));
+            if type_name.is_empty() {
+                break;
+            }
+            parser.consume_whitespace();
+            parser.consume(b",");
+            args.push(type_name);
+        }
+        parser.consume_whitespace();
+        parser.consume(b"=");
+        parser.consume_whitespace();
+        let expected = parser.take_while(|c| matches!(c, b'0'..=b'9' | b'-'));
+
+        cases.push(Case {
+            name,
+            args,
+            expected
         });
     }
-    todo!();
+
+    Ok((signature, cases))
 }
 
 fn main() -> anyhow::Result<()> {
@@ -109,9 +151,9 @@ fn main() -> anyhow::Result<()> {
 
         if entry.path().extension().is_some_and(|ext| ext.to_str() == Some("input")) {
             let input_text = std::fs::read(entry.path())?;
-            let input = parse_input(&input_text)?;
+            let (signature, inputs) = parse_input(&input_text)?;
 
-            println!("{:?}", input);
+            println!("{:?} {:?}", signature, inputs);
 
             let rs_path = entry.path().with_extension("rs");
             let wasm_path = entry.path().with_extension("wasm");
@@ -135,23 +177,32 @@ fn main() -> anyhow::Result<()> {
             let module = parse(&content, &mut MyCtx)?;
             dbg!(&module);
 
-            let idx = module.get_function_index_by_name(input.name)
+            let idx = module.get_function_index_by_name(signature.name)
                 .context("selecting entry function")?;
 
-            let mut mem = Vec::new();
-            for param in &input.args {
-                match param.as_bytes() {
-                    b"u32" => mem.extend_from_slice(&0u32.to_ne_bytes()),
-                    _ => unimplemented!("other: {:?}", param),
+            for case in inputs {
+                let mut mem = Vec::new();
+                for (idx, param) in signature.args.iter().enumerate() {
+                    match param.as_bytes() {
+                        b"u32" => {
+                            let val: u32 = std::str::from_utf8(&case.args[idx]).unwrap().parse().unwrap();
+                            mem.extend_from_slice(&val.to_ne_bytes())
+                        },
+                        _ => unimplemented!("other: {:?}", param),
+                    }
                 }
-            }
 
-            let data = b"123456";
-            let mut ctx = VmContext::new();
-            evaluate(&mut ctx, &module, idx, &mem, data, &mut MyCtx);
-            match input.returns.as_bytes() {
-                b"u32" => println!("{:?}", ctx.stack.pop_u32()),
-                _ => unimplemented!("other: {:?}", input.returns),
+                let mut ctx = VmContext::new();
+                evaluate(&mut ctx, &module, idx, &mem, &[], &mut MyCtx);
+                match signature.returns.as_bytes() {
+                    b"u32" => {
+                        let res = ctx.stack.pop_u32().unwrap();
+                        let expected: u32 = std::str::from_utf8(&case.expected).unwrap().parse().unwrap();
+                        assert_eq!(res, expected);
+                    },
+                    _ => unimplemented!("other: {:?}", signature.returns),
+                };
+
             }
         }
     }

@@ -17,8 +17,8 @@ fn factorial(n: u32, acc: u32) -> u32 {
 }
 
 #[export_name = "entry"]
-pub fn entry(n: u32, acc: u32) -> u32 {
-    factorial(n, acc)
+pub fn entry(n: u32) -> u32 {
+    factorial(n, 1)
 }
 
 // rustc --target=wasm32-unknown-unknown foo.rs -O -C panic=abort
