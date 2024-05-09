@@ -5,6 +5,7 @@ members = [
     "uwasm-custom",
     "uwasm-perf",
     "uwasm-test",
+    "uwasm-uc",
 ]
 
 [workspace.lints.clippy]
