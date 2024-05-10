@@ -2,7 +2,7 @@ use alloc::fmt;
 use alloc::vec::Vec;
 use core::fmt::Formatter;
 
-use crate::{Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
+use crate::{ByteStr, Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
 use crate::operand::{EvaluationError, Operand};
 use crate::parser::{Reader, TypeKind};
 
@@ -352,6 +352,78 @@ impl Memory {
     fn read_f64(&self, offset: usize) -> Option<f64> {
         self.read_bytes_at(offset).map(f64::from_ne_bytes)
     }
+}
+
+pub(crate) struct Serializer {
+    buf: Vec<u8>,
+}
+
+impl Serializer {
+    pub(crate) fn write_bytes(&mut self, bytes: &[u8]) {
+        self.buf.extend_from_slice(bytes);
+    }
+}
+
+trait FunctionArg {
+    fn write_to(&self, serializer: &mut Serializer);
+}
+
+macro_rules! tuple_impls {
+    ( $( $name:ident )+ ) => {
+        impl<$($name: FunctionArg),+> FunctionArg for ($($name,)+)
+        {
+            fn write_to(&self, serializer: &mut Serializer) {
+                let ($($name,)+) = self;
+                $($name.write_to(serializer);)+
+            }
+        }
+    };
+}
+
+tuple_impls! { A }
+tuple_impls! { A B }
+tuple_impls! { A B C }
+tuple_impls! { A B C D }
+tuple_impls! { A B C D E }
+tuple_impls! { A B C D E F }
+tuple_impls! { A B C D E F G }
+tuple_impls! { A B C D E F G H }
+tuple_impls! { A B C D E F G H I }
+tuple_impls! { A B C D E F G H I J }
+tuple_impls! { A B C D E F G H I J K }
+tuple_impls! { A B C D E F G H I J K L }
+
+// variadic tuples... 🙏
+
+impl<O> FunctionArg for O where O: Operand {
+    fn write_to(&self, serializer: &mut Serializer) {
+        <Self as Operand>::write_to(self, serializer);
+    }
+}
+
+#[derive(Debug)]
+pub enum ExecutionError {
+    FunctionNotExists,
+    EmptyStack,
+    EvaluationError(EvaluationError),
+}
+
+pub fn execute_function<'code, TResult: Operand>(
+    module: &'code WasmModule<'code>,
+    func_name: &ByteStr,
+    args: impl FunctionArg,
+    memory: &[u8],
+    execution_ctx: &mut impl Context,
+) -> Result<TResult, ExecutionError> {
+    let func_idx = module.get_function_index_by_name(func_name)
+        .ok_or_else(|| ExecutionError::FunctionNotExists)?;
+    let mut ctx = VmContext::new();
+    let mut args_mem = Serializer {
+        buf: Vec::new(),
+    };
+    args.write_to(&mut args_mem);
+    evaluate(&mut ctx, module, func_idx, &args_mem.buf, memory, execution_ctx);
+    TResult::pop(&mut ctx.stack).map_err(ExecutionError::EvaluationError)
 }
 
 pub fn evaluate<'code>(

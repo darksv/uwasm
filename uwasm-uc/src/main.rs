@@ -14,7 +14,7 @@ use esp_hal::{
     clock::ClockControl, gpio::IO, peripherals::Peripherals, prelude::*,
     systimer::SystemTimer,
 };
-use uwasm::{Context, evaluate, parse, VmContext};
+use uwasm::{Context, evaluate, parse, VmContext, execute_function, ByteStr};
 
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
@@ -37,9 +37,7 @@ async fn main(_spawner: Spawner) {
 
     loop {
         let start = SystemTimer::now();
-        let mut ctx = VmContext::new();
-        evaluate(&mut ctx, &module, 0, &10.0f64.to_le_bytes(), &[], &mut MyCtx);
-        let result = ctx.stack.pop_f64();
+        let result = execute_function::<f64>(&module, b"fac".into(), (10.0f64,), &[], &mut MyCtx);
         let elapsed = SystemTimer::now() - start;
         println!("calculated: {result:?} | ticks: {elapsed}");
     }

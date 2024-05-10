@@ -1,4 +1,4 @@
-use crate::interpreter::VmStack;
+use crate::interpreter::{Serializer, VmStack};
 
 #[derive(Debug)]
 pub enum EvaluationError {
@@ -9,6 +9,8 @@ pub trait Operand: Copy {
     fn pop(stack: &mut VmStack) -> Result<Self, EvaluationError>;
 
     fn push(stack: &mut VmStack, value: Self);
+
+    fn write_to(&self, serializer: &mut Serializer);
 }
 
 impl Operand for i32 {
@@ -18,6 +20,10 @@ impl Operand for i32 {
 
     fn push(stack: &mut VmStack, value: Self) {
         stack.push_i32(value)
+    }
+
+    fn write_to(&self, serializer: &mut Serializer) {
+        serializer.write_bytes(&self.to_ne_bytes());
     }
 }
 
@@ -29,6 +35,10 @@ impl Operand for u32 {
     fn push(stack: &mut VmStack, value: Self) {
         stack.push_i32(value as i32)
     }
+
+    fn write_to(&self, serializer: &mut Serializer) {
+        serializer.write_bytes(&self.to_ne_bytes());
+    }
 }
 
 impl Operand for i64 {
@@ -38,6 +48,10 @@ impl Operand for i64 {
 
     fn push(stack: &mut VmStack, value: Self) {
         stack.push_i64(value)
+    }
+
+    fn write_to(&self, serializer: &mut Serializer) {
+        serializer.write_bytes(&self.to_ne_bytes());
     }
 }
 
@@ -49,6 +63,10 @@ impl Operand for u64 {
     fn push(stack: &mut VmStack, value: Self) {
         stack.push_i64(value as i64)
     }
+
+    fn write_to(&self, serializer: &mut Serializer) {
+        serializer.write_bytes(&self.to_ne_bytes());
+    }
 }
 
 impl Operand for f32 {
@@ -58,6 +76,10 @@ impl Operand for f32 {
 
     fn push(stack: &mut VmStack, value: Self) {
         stack.push_f32(value)
+    }
+
+    fn write_to(&self, serializer: &mut Serializer) {
+        serializer.write_bytes(&self.to_ne_bytes());
     }
 }
 
@@ -69,6 +91,10 @@ impl Operand for f64 {
     fn push(stack: &mut VmStack, value: Self) {
         stack.push_f64(value)
     }
+
+    fn write_to(&self, serializer: &mut Serializer) {
+        serializer.write_bytes(&self.to_ne_bytes());
+    }
 }
 
 impl Operand for bool {
@@ -78,5 +104,9 @@ impl Operand for bool {
 
     fn push(stack: &mut VmStack, value: Self) {
         stack.push_i32(value as i32)
+    }
+
+    fn write_to(&self, serializer: &mut Serializer) {
+        serializer.write_bytes(&[*self as u8]);
     }
 }

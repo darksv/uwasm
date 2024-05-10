@@ -15,6 +15,18 @@ impl ByteStr {
     }
 }
 
+impl<'d> From<&'d [u8]> for &'d ByteStr {
+    fn from(value: &'d [u8]) -> Self {
+        ByteStr::from_bytes(value)
+    }
+}
+
+impl<'d, const N: usize> From<&'d [u8; N]> for &'d ByteStr {
+    fn from(value: &'d [u8; N]) -> Self {
+        ByteStr::from_bytes(value)
+    }
+}
+
 impl ops::Deref for ByteStr {
     type Target = [u8];
 
