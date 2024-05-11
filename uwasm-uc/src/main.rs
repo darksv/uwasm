@@ -37,7 +37,7 @@ async fn main(_spawner: Spawner) {
 
     loop {
         let start = SystemTimer::now();
-        let result = execute_function::<f64>(&module, b"fac".into(), (10.0f64,), &[], &mut MyCtx);
+        let result = execute_function::<(f64,), f64>(&module, b"fac".into(), (10.0f64,), &[], &mut MyCtx);
         let elapsed = SystemTimer::now() - start;
         println!("calculated: {result:?} | ticks: {elapsed}");
     }

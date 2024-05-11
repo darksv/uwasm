@@ -1,6 +1,7 @@
 use alloc::fmt;
 use alloc::vec::Vec;
 use core::fmt::Formatter;
+use core::iter;
 
 use crate::{ByteStr, Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
 use crate::operand::{EvaluationError, Operand};
@@ -364,17 +365,24 @@ impl Serializer {
     }
 }
 
-trait FunctionArg {
+trait FunctionArgs {
+    const TYPE: &'static [TypeKind];
+
     fn write_to(&self, serializer: &mut Serializer);
 }
 
 macro_rules! tuple_impls {
     ( $( $name:ident )+ ) => {
-        impl<$($name: FunctionArg),+> FunctionArg for ($($name,)+)
-        {
+        impl<$($name: Operand),+> FunctionArgs for ($($name,)+) {
+            const TYPE: &'static [TypeKind] = &[$($name::TYPE),+];
+            #[allow(nonstandard_style)]
             fn write_to(&self, serializer: &mut Serializer) {
-                let ($($name,)+) = self;
-                $($name.write_to(serializer);)+
+                let (
+                    $($name,)+
+                ) = self;
+                $(
+                    <$name as Operand>::write_to($name, serializer);
+                )+
             }
         }
     };
@@ -395,28 +403,42 @@ tuple_impls! { A B C D E F G H I J K L }
 
 // variadic tuples... 🙏
 
-impl<O> FunctionArg for O where O: Operand {
-    fn write_to(&self, serializer: &mut Serializer) {
-        <Self as Operand>::write_to(self, serializer);
-    }
-}
-
 #[derive(Debug)]
 pub enum ExecutionError {
     FunctionNotExists,
+    InvalidSignature,
     EmptyStack,
     EvaluationError(EvaluationError),
+    MissingFunctionBody,
 }
 
-pub fn execute_function<'code, TResult: Operand>(
+pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
     module: &'code WasmModule<'code>,
     func_name: &ByteStr,
-    args: impl FunctionArg,
+    args: TArgs,
     memory: &[u8],
     execution_ctx: &mut impl Context,
 ) -> Result<TResult, ExecutionError> {
-    let func_idx = module.get_function_index_by_name(func_name)
-        .ok_or_else(|| ExecutionError::FunctionNotExists)?;
+    let Some(func_idx) = module.get_function_index_by_name(func_name) else {
+        return Err(ExecutionError::FunctionNotExists);
+    };
+
+    let Some(func) = &module.functions[func_idx].body else {
+        return Err(ExecutionError::MissingFunctionBody);
+    };
+
+    if func.signature.params.len() != TArgs::TYPE.len() {
+        return Err(ExecutionError::InvalidSignature);
+    }
+
+    for (expected, actual) in iter::zip(&func.signature.params, TArgs::TYPE) {
+        if expected != actual {
+            return Err(ExecutionError::InvalidSignature);
+        }
+    }
+
+    // TODO: check result types
+
     let mut ctx = VmContext::new();
     let mut args_mem = Serializer {
         buf: Vec::new(),

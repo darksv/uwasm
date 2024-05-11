@@ -223,7 +223,7 @@ impl Item for SectionKind {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub(crate) enum TypeKind {
     Void = 0x40,
