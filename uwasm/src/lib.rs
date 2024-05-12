@@ -165,10 +165,35 @@ pub fn parse<'code>(
                     }
                 }
             }
+            SectionKind::Import => {
+                writeln!(ctx, "Found import section");
+                let num_imports = reader.read_usize()?;
+                writeln!(ctx, "{num_imports}");
+                for _ in 0..num_imports {
+                    let module_name = reader.read_str()?;
+                    let field_name = reader.read_str()?;
+                    let import_kind = reader.read_u8()?;
+                    let import_sig_idx = reader.read_usize()?;
+                    writeln!(
+                        ctx,
+                        "Found imported: {module_name}.{field_name} | signature index: {import_sig_idx} | kind: {import_kind}"
+                    );
+                    if import_kind == 0 {
+                        // function
+                        functions.push(Func {
+                            body: None,
+                            name: None,
+                            signature: Some(import_sig_idx),
+                        });
+                    }
+                }
+                writeln!(ctx, "{:?}", reader);
+            }
             SectionKind::Function => {
                 writeln!(ctx, "Found function section");
 
                 let num_funcs = reader.read_usize()?;
+                writeln!(ctx, "{:?}", num_funcs);
                 for func_idx in 0..num_funcs {
                     let sig_index = reader.read_usize()?;
                     writeln!(ctx, "Function #{func_idx} | signature #{sig_index}: {:?}", &signatures[sig_index]);

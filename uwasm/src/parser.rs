@@ -196,6 +196,7 @@ pub(crate) trait Item: Sized {
 pub(crate) enum SectionKind {
     Custom = 0x00,
     Type = 0x01,
+    Import = 0x02,
     Function = 0x03,
     Table = 0x04,
     Memory = 0x05,
@@ -211,6 +212,7 @@ impl Item for SectionKind {
         match reader.read_u8()? {
             0x00 => Ok(SectionKind::Custom),
             0x01 => Ok(SectionKind::Type),
+            0x02 => Ok(SectionKind::Import),
             0x03 => Ok(SectionKind::Function),
             0x04 => Ok(SectionKind::Table),
             0x05 => Ok(SectionKind::Memory),
