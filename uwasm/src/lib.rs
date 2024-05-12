@@ -126,6 +126,7 @@ pub fn parse<'code>(
 
     let mut functions: Vec<_> = Vec::new();
     let mut signatures = Vec::new();
+    let mut imports = 0;
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -185,9 +186,9 @@ pub fn parse<'code>(
                             name: None,
                             signature: Some(import_sig_idx),
                         });
+                        imports += 1;
                     }
                 }
-                writeln!(ctx, "{:?}", reader);
             }
             SectionKind::Function => {
                 writeln!(ctx, "Found function section");
@@ -314,7 +315,7 @@ pub fn parse<'code>(
                         .iter()
                         .map(|t| t.len_bytes())
                         .sum();
-                    functions[func_idx].body = Some(FuncBody {
+                    functions[imports + func_idx].body = Some(FuncBody {
                         signature,
                         locals_offsets: offsets,
                         locals_types,
