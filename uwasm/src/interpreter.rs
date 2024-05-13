@@ -602,16 +602,21 @@ pub fn evaluate<'code>(
                 let func_idx = reader.read_usize().unwrap();
                 #[cfg(debug_assertions)]
                 writeln!(x, "calling {}", func_idx);
-                ctx.call_stack.push(StackFrame {
-                    func_idx,
-                    reader: Reader::new(module.get_function_by_index(func_idx).unwrap().code),
-                    locals_offset: ctx.locals.len(),
-                    curr_loop_start: None,
-                    blocks: Vec::new(),
-                });
-                let params_mem = &ctx.stack.data[ctx.stack.data.len() - current_func.params_len_in_bytes..];
-                copy_locals(&mut ctx.locals, params_mem, current_func);
-                ctx.stack.pop_many(current_func.params_len_in_bytes);
+
+                if let Some(func) = module.get_function_by_index(func_idx) {
+                    ctx.call_stack.push(StackFrame {
+                        func_idx,
+                        reader: Reader::new(func.code),
+                        locals_offset: ctx.locals.len(),
+                        curr_loop_start: None,
+                        blocks: Vec::new(),
+                    });
+                    let params_mem = &ctx.stack.data[ctx.stack.data.len() - current_func.params_len_in_bytes..];
+                    copy_locals(&mut ctx.locals, params_mem, current_func);
+                    ctx.stack.pop_many(current_func.params_len_in_bytes);
+                } else {
+                    todo!("call native function");
+                }
             }
             0x1b => {
                 // select
