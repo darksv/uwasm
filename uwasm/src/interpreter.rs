@@ -3,7 +3,9 @@ use alloc::vec::Vec;
 use core::fmt::Formatter;
 use core::iter;
 
-use crate::{ByteStr, Context, FuncBody, parse_opcode, ParserError, ParserState, WasmModule};
+use crate::{ByteStr, Context, FuncBody, ParserError, WasmModule};
+#[cfg(debug_assertions)]
+use crate::{parse_opcode, ParserState};
 use crate::operand::{EvaluationError, Operand};
 use crate::parser::{Reader, TypeKind};
 

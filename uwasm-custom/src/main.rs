@@ -1,3 +1,4 @@
+#![allow(unused)]
 mod reg_based {
     #[repr(u8)]
     #[derive(Copy, Clone)]

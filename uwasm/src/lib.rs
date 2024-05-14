@@ -1,5 +1,4 @@
 #![feature(debug_closure_helpers)]
-#![feature(split_at_checked)]
 #![feature(error_in_core)]
 #![no_std]
 
@@ -398,7 +397,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
         0x03 => {
             // loop
             writeln!(ctx, "loop");
-            let loop_type = reader.read_u8()?;
+            let _loop_type = reader.read_u8()?;
             if !ONLY_PRINT {
                 state.blocks.push(BlockMeta { kind: BlockType::Loop, offset: pos });
             }
@@ -406,7 +405,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
         0x04 => {
             // if
             writeln!(ctx, "if");
-            let ty = reader.read::<TypeKind>()?;
+            let _ty = reader.read::<TypeKind>()?;
             if !ONLY_PRINT {
                 state.blocks.push(BlockMeta { kind: BlockType::If, offset: pos });
             }
@@ -450,7 +449,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             // FIXME
             let n = reader.read_usize()?;
             write!(ctx, "br_table");
-            for i in 0..n {
+            for _ in 0..n {
                 let n = reader.read_usize()?;
                 write!(ctx, " {}", n);
             }

@@ -1,7 +1,7 @@
 extern crate core;
 
 use std::fmt::Arguments;
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::process::Command;
 use anyhow::{bail, Context};
 use uwasm::{ByteStr, evaluate, parse, VmContext};
@@ -23,6 +23,7 @@ struct Signature<'s> {
 
 #[derive(Debug)]
 struct Case<'s> {
+    #[allow(unused)]
     name: &'s ByteStr,
     args: Vec<&'s ByteStr>,
     expected: &'s ByteStr,
