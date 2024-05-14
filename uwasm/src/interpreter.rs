@@ -308,6 +308,7 @@ impl Memory {
         unsafe { core::mem::transmute(data) }
     }
 
+    #[allow(unused)]
     pub fn from_slice_mut(data: &mut [u8]) -> &mut Self {
         unsafe { core::mem::transmute(data) }
     }
@@ -356,7 +357,7 @@ impl Memory {
     }
 }
 
-pub(crate) struct Serializer {
+pub struct Serializer {
     buf: Vec<u8>,
 }
 
@@ -366,7 +367,7 @@ impl Serializer {
     }
 }
 
-trait FunctionArgs {
+pub trait FunctionArgs {
     const TYPE: &'static [TypeKind];
 
     fn write_to(&self, serializer: &mut Serializer);
@@ -472,6 +473,7 @@ pub fn evaluate<'code>(
         let reader = &mut frame.reader;
         let pos = current_func.offset + reader.pos();
 
+        #[cfg(debug_assertions)]
         let opcode_reader = reader.clone();
         let op = match reader.read_u8() {
             Ok(op) => op,
@@ -501,7 +503,7 @@ pub fn evaluate<'code>(
             }
             0x02 => {
                 // block
-                let ty = reader.read_usize().unwrap();
+                let _ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
                 frame.blocks.push(BlockMeta {
                     offset: pos,
@@ -511,7 +513,7 @@ pub fn evaluate<'code>(
             }
             0x03 => {
                 // loop
-                let ty = reader.read_usize().unwrap();
+                let _ty = reader.read_usize().unwrap();
                 frame.curr_loop_start = Some(pos);
                 frame.blocks.push(BlockMeta {
                     offset: pos,
@@ -556,6 +558,7 @@ pub fn evaluate<'code>(
                 if let Some(block) = frame.blocks.pop() {
                     #[cfg(debug_assertions)]
                     writeln!(x, "end {:?}", block.kind);
+                    _ = block;
                 } else {
                     #[cfg(debug_assertions)]
                     writeln!(x, "exit function");
@@ -669,7 +672,7 @@ pub fn evaluate<'code>(
                 // i64.load32_s 0x34
                 // i64.load32_u 0x35
                 let idx = ctx.stack.pop_u32().unwrap() as usize;
-                let align = reader.read_usize().unwrap();
+                let _align = reader.read_usize().unwrap();
                 let offset = reader.read_usize().unwrap() + idx;
                 let mem = Memory::from_slice(memory);
                 match op {
