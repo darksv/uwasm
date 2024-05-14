@@ -104,8 +104,7 @@ impl VmStack {
     }
 
     pub fn peek_bytes<const N: usize>(&self) -> Option<[u8; N]> {
-        let (rest, &bytes) = self.data.split_last_chunk::<N>()?;
-        self.data[rest.len()..].first_chunk().copied()
+        self.data.split_last_chunk::<N>().map(|(_, bytes)| *bytes)
     }
 
     #[inline]
