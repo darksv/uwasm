@@ -9,13 +9,13 @@ unsafe fn panic(_: &PanicInfo) -> ! {
 }
 
 extern "C" {
-    fn foo() -> u32;
+    fn foo(_: u64) -> u32;
 }
 
 #[no_mangle]
 #[export_name = "entry"]
-pub fn entry() {
-    unsafe { foo() };
+pub fn entry(n: u32) -> u32 {
+    n + unsafe { foo() }
 }
 
 // rustc --target=wasm32-unknown-unknown foo.rs -C panic=abort

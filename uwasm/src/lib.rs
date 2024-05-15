@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
 
-pub use crate::interpreter::{evaluate, execute_function, StackFrame, UntypedMemorySpan, VmContext};
+pub use crate::interpreter::{evaluate, execute_function, StackFrame, UntypedMemorySpan, VmContext, VmStack, ImportedFunc};
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
 pub use crate::str::ByteStr;
@@ -63,6 +63,10 @@ impl<'code> WasmModule<'code> {
             .iter()
             .position(|f| f.name.is_some_and(|b| b.as_bytes() == name.as_bytes()))
     }
+
+    pub fn get_imports(&self) -> impl Iterator<Item=&ByteStr> {
+        self.functions.iter().filter_map(|f| f.body.is_none().then(|| f.name.as_deref().unwrap()))
+    }
 }
 
 pub struct FuncBody<'code> {
@@ -86,6 +90,7 @@ impl fmt::Debug for FuncBody<'_> {
 
         f
             .debug_struct("FuncBody")
+            .field("signature", &self.signature)
             .field_with("code", |f| {
                 struct Wrapper<'a, 'b>(&'a mut fmt::Formatter<'b>);
                 impl Context for Wrapper<'_, '_> {
@@ -182,7 +187,7 @@ pub fn parse<'code>(
                         // function
                         functions.push(Func {
                             body: None,
-                            name: None,
+                            name: Some(field_name),
                             signature: Some(import_sig_idx),
                         });
                         imports += 1;
@@ -281,7 +286,7 @@ pub fn parse<'code>(
 
                 let num_funcs = reader.read_usize()?;
                 for func_idx in 0..num_funcs {
-                    let signature = signatures[functions[func_idx].signature.unwrap()].clone();
+                    let signature = signatures[functions[imports + func_idx].signature.unwrap()].clone();
 
                     let body_len = reader.read_usize()?;
                     let locals_num = reader.read_usize()?;
@@ -824,7 +829,7 @@ mod tests {
             parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            evaluate(&mut ctx, &module, 0, &(i as f64).to_le_bytes(), &[], &mut MyCtx);
+            evaluate(&mut ctx, &module, 0, &(i as f64).to_le_bytes(), &[], &[], &mut MyCtx);
 
             assert_eq!(ctx.stack.pop_f64(), Some(native_factorial(i) as f64));
         }
@@ -837,7 +842,7 @@ mod tests {
         let mut ctx = VmContext::new();
         for i in 0..10i32 {
             for j in 10..20i32 {
-                evaluate(&mut ctx, &module, 1, &[i.to_le_bytes(), j.to_le_bytes()].concat(), &[], &mut MyCtx);
+                evaluate(&mut ctx, &module, 1, &[i.to_le_bytes(), j.to_le_bytes()].concat(), &[], &[], &mut MyCtx);
                 assert_eq!(ctx.stack.pop_i32(), Some(j - i));
             }
         }
@@ -850,7 +855,7 @@ mod tests {
         let mut ctx = VmContext::new();
         let numbers = [1.23f32, 4.56];
         let data = unsafe { core::slice::from_raw_parts(numbers.as_ptr().cast(), numbers.len() * 4) };
-        evaluate(&mut ctx, &module, 0, &[0u32.to_le_bytes(), (numbers.len() as u32).to_le_bytes()].concat(), data, &mut MyCtx);
+        evaluate(&mut ctx, &module, 0, &[0u32.to_le_bytes(), (numbers.len() as u32).to_le_bytes()].concat(), data, &[], &mut MyCtx);
         assert_eq!(ctx.stack.pop_f32(), Some(5.79));
     }
 
@@ -861,7 +866,7 @@ mod tests {
         let mut ctx = VmContext::new();
         let numbers = [1.23f32, 4.56, -10.0];
         let data = unsafe { core::slice::from_raw_parts(numbers.as_ptr().cast(), numbers.len() * 4) };
-        evaluate(&mut ctx, &module, 0, &[0u32.to_le_bytes(), (numbers.len() as u32).to_le_bytes()].concat(), data, &mut MyCtx);
+        evaluate(&mut ctx, &module, 0, &[0u32.to_le_bytes(), (numbers.len() as u32).to_le_bytes()].concat(), data, &[], &mut MyCtx);
         assert_eq!(ctx.stack.pop_f32(), Some(-4.21));
     }
 }

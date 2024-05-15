@@ -414,11 +414,14 @@ pub enum ExecutionError {
     MissingFunctionBody,
 }
 
+pub type ImportedFunc = for<'f> fn(&'f mut VmStack);
+
 pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
     module: &'code WasmModule<'code>,
     func_name: &ByteStr,
     args: TArgs,
     memory: &[u8],
+    imports: &[ImportedFunc],
     execution_ctx: &mut impl Context,
 ) -> Result<TResult, ExecutionError> {
     let Some(func_idx) = module.get_function_index_by_name(func_name) else {
@@ -446,7 +449,7 @@ pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
         buf: Vec::new(),
     };
     args.write_to(&mut args_mem);
-    evaluate(&mut ctx, module, func_idx, &args_mem.buf, memory, execution_ctx);
+    evaluate(&mut ctx, module, func_idx, &args_mem.buf, memory, imports, execution_ctx);
     TResult::pop(&mut ctx.stack).map_err(ExecutionError::EvaluationError)
 }
 
@@ -456,6 +459,7 @@ pub fn evaluate<'code>(
     func_idx: usize,
     args: &[u8],
     memory: &[u8],
+    imports: &[ImportedFunc],
     #[allow(unused)]
     x: &mut impl Context,
 ) {
@@ -619,7 +623,9 @@ pub fn evaluate<'code>(
                     copy_locals(&mut ctx.locals, params_mem, current_func);
                     ctx.stack.pop_many(current_func.params_len_in_bytes);
                 } else {
-                    todo!("call native function");
+                    #[cfg(debug_assertions)]
+                    writeln!(x, "calling imported function {}", func_idx);
+                    imports[func_idx](&mut ctx.stack);
                 }
             }
             0x1b => {

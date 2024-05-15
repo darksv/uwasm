@@ -4,7 +4,8 @@
 
 extern crate alloc;
 
-use core::fmt::Arguments;
+use alloc::vec::Vec;
+use core::fmt::{Arguments, Write};
 use core::result;
 
 use esp_backtrace as _;
@@ -14,7 +15,7 @@ use esp_hal::{
     clock::ClockControl, gpio::IO, peripherals::Peripherals, prelude::*,
     systimer::SystemTimer,
 };
-use uwasm::{Context, evaluate, parse, VmContext, execute_function, ByteStr};
+use uwasm::{Context, evaluate, parse, VmContext, execute_function, ByteStr, VmStack, ImportedFunc};
 
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
@@ -22,22 +23,32 @@ static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 struct MyCtx;
 
 impl Context for MyCtx {
-    fn write_fmt(&mut self, _args: Arguments) {}
+    fn write_fmt(&mut self, args: Arguments) {
+        _ = esp_println::Printer.write_fmt(args);
+    }
 }
+
+static mut IDX: u32 = 0;
 
 #[main]
 async fn main(_spawner: Spawner) {
     let peripherals = Peripherals::take();
     let system = peripherals.SYSTEM.split();
     let _clocks = ClockControl::boot_defaults(system.clock_control).freeze();
-    let systimer = SystemTimer::new(peripherals.SYSTIMER);
     init_heap();
 
-    let module = parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
+    let module = parse(include_bytes!("../../call_external.wasm"), &mut MyCtx).expect("parse module");
+    let mut imports: Vec<ImportedFunc> = Vec::new();
+    for name in module.get_imports() {
+        imports.push(|stack| unsafe {
+            stack.push_i32(IDX as i32);
+            IDX += 1;
+        });
+    }
 
     loop {
         let start = SystemTimer::now();
-        let result = execute_function::<(f64,), f64>(&module, b"fac".into(), (10.0f64,), &[], &mut MyCtx);
+        let result = execute_function::<(u32,), u32>(&module, b"entry".into(), (12u32,), &[], &imports, &mut MyCtx);
         let elapsed = SystemTimer::now() - start;
         println!("calculated: {result:?} | ticks: {elapsed}");
     }
