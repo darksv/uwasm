@@ -1,7 +1,7 @@
 extern crate core;
 
 use std::fmt::Arguments;
-use uwasm::{evaluate, parse, Context, ParserError, VmContext};
+use uwasm::{parse, Context, ParserError, execute_function};
 
 struct MyCtx;
 
@@ -22,14 +22,12 @@ fn main() -> Result<(), ParserError> {
     let content = std::fs::read(path).expect("read file");
 
     let module = parse(&content, &mut MyCtx)?;
-    let mut ctx = VmContext::new();
-
     let n = 1_000_000;
 
     let started = std::time::Instant::now();
     for _ in 0u32..n {
-        evaluate(&mut ctx, &module, 0, &15.0f64.to_le_bytes(), &[], &[],  &mut MyCtx);
-        assert_eq!(ctx.stack.pop_f64(), Some(native_factorial(15) as f64));
+        let res: f64 = execute_function(&module, b"fac".into(),(15.0f64,), &[], &[],  &mut MyCtx).unwrap();
+        assert_eq!(res, native_factorial(15) as f64);
     }
     println!("time = {:?}/execution", started.elapsed() / n);
 
