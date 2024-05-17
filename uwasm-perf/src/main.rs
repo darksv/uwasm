@@ -1,5 +1,6 @@
 extern crate core;
 
+use std::arch::x86_64::_rdtsc;
 use std::fmt::Arguments;
 use uwasm::{parse, Context, ParserError, execute_function, VmContext};
 
@@ -8,6 +9,10 @@ struct MyCtx;
 impl Context for MyCtx {
     fn write_fmt(&mut self, #[allow(unused)] args: Arguments) {
         // std::io::stdout().write_fmt(args).unwrap()
+    }
+
+    fn ticks(&self) -> u64 {
+        unsafe { _rdtsc() }
     }
 }
 

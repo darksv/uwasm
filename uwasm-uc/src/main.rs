@@ -26,6 +26,10 @@ impl Context for MyCtx {
     fn write_fmt(&mut self, args: Arguments) {
         _ = esp_println::Printer.write_fmt(args);
     }
+
+    fn ticks(&self) -> u64 {
+        SystemTimer::now()
+    }
 }
 
 static mut IDX: u32 = 0;
@@ -47,12 +51,12 @@ async fn main(_spawner: Spawner) {
     }
 
     let mut ctx = VmContext::new();
-
     loop {
-        let start = SystemTimer::now();
-        let result = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (12u32,), &[], &imports, &mut MyCtx);
-        let elapsed = SystemTimer::now() - start;
-        println!("calculated: {result:?} | ticks: {elapsed}");
+        ctx.reset_profile();
+        for i in 0..100 {
+            let _ = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (12u32,), &[], &imports, &mut MyCtx);
+        }
+        println!("{:?}", ctx.profile());
     }
 }
 

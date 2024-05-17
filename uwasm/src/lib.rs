@@ -46,6 +46,7 @@ impl Item for FuncSignature {
 
 pub trait Context {
     fn write_fmt(&mut self, args: fmt::Arguments);
+    fn ticks(&self) -> u64;
 }
 
 #[derive(Debug)]
@@ -96,6 +97,10 @@ impl fmt::Debug for FuncBody<'_> {
                 impl Context for Wrapper<'_, '_> {
                     fn write_fmt(&mut self, args: fmt::Arguments) {
                         self.0.write_fmt(args).unwrap();
+                    }
+
+                    fn ticks(&self) -> u64 {
+                        0
                     }
                 }
 

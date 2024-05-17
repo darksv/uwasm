@@ -14,7 +14,7 @@ pub struct VmContext<'code> {
     call_stack: Vec<StackFrame<'code>>,
     // temporary store for locals - TODO: maybe reuse values from the stack
     locals: Vec<u8>,
-    executed_instr: [u32; 0xFF],
+    profile: ExecutionProfile,
 }
 
 impl VmContext<'_> {
@@ -23,25 +23,45 @@ impl VmContext<'_> {
             stack: VmStack::new(),
             call_stack: Vec::new(),
             locals: Vec::new(),
-            executed_instr: core::array::from_fn(|_| 0),
+            profile: ExecutionProfile::new(),
         }
     }
 
-    pub fn profile(&self) -> ExecutionProfile {
-        ExecutionProfile { executed_instr: self.executed_instr }
+    pub fn reset_profile(&mut self) {
+        self.profile = ExecutionProfile::new();
+    }
+
+    pub fn profile(&self) -> &ExecutionProfile {
+        &self.profile
     }
 }
 
 pub struct ExecutionProfile {
-    executed_instr: [u32; 0xFF],
+    executed_instr_count: [u32; 0xFF],
+    executed_instr_time: [u64; 0xFF],
+}
+
+impl ExecutionProfile {
+    fn new() -> Self {
+        Self {
+            executed_instr_count: core::array::from_fn(|_| 0),
+            executed_instr_time: core::array::from_fn(|_| 0),
+        }
+    }
 }
 
 impl fmt::Debug for ExecutionProfile {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let total = self.executed_instr.iter().sum::<u32>() as u64;
-        for (instr, &count) in self.executed_instr.iter().enumerate() {
+        let total_count = self.executed_instr_count.iter().sum::<u32>() as u64;
+        let total_time = self.executed_instr_time.iter().sum::<u64>() as u64;
+        for (instr, &count) in self.executed_instr_count.iter().enumerate() {
+            let time = self.executed_instr_time[instr];
             if count > 0 {
-                writeln!(f, "{:02X} {:>12} ({:>6.02}%)", instr, count, (count as f32) * 100.0 / (total as f32))?;
+                writeln!(f, "{:02X} {:>12} ({:>6.02}%) | {:>12} ({:>6.02}%)",
+                         instr, count, (count as f32) * 100.0 / (total_count as f32),
+                         time,
+                         (time as f32) * 100.0 / (total_time as f32)
+                )?;
             }
         }
         Ok(())
@@ -522,8 +542,9 @@ pub fn evaluate<'code>(
             drop(reader);
         }
 
-        ctx.executed_instr[op as usize] += 1;
+        ctx.profile.executed_instr_count[op as usize] += 1;
 
+        let start = x.ticks();
         match op {
             0x00 => {
                 writeln!(x, "entered unreachable");
@@ -861,5 +882,7 @@ pub fn evaluate<'code>(
             }
             _ => todo!("opcode {:02x?}", op),
         }
+
+        ctx.profile.executed_instr_time[op as usize] += x.ticks() - start;
     }
 }
