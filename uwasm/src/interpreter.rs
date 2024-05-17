@@ -14,6 +14,7 @@ pub struct VmContext<'code> {
     call_stack: Vec<StackFrame<'code>>,
     // temporary store for locals - TODO: maybe reuse values from the stack
     locals: Vec<u8>,
+    executed_instr: [u32; 0xFF],
 }
 
 impl VmContext<'_> {
@@ -22,7 +23,28 @@ impl VmContext<'_> {
             stack: VmStack::new(),
             call_stack: Vec::new(),
             locals: Vec::new(),
+            executed_instr: core::array::from_fn(|_| 0),
         }
+    }
+
+    pub fn profile(&self) -> ExecutionProfile {
+        ExecutionProfile { executed_instr: self.executed_instr }
+    }
+}
+
+pub struct ExecutionProfile {
+    executed_instr: [u32; 0xFF],
+}
+
+impl fmt::Debug for ExecutionProfile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let total = self.executed_instr.iter().sum::<u32>() as u64;
+        for (instr, &count) in self.executed_instr.iter().enumerate() {
+            if count > 0 {
+                writeln!(f, "{:02X} {:>12} ({:>6.02}%)", instr, count, (count as f32) * 100.0 / (total as f32))?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -417,6 +439,7 @@ pub enum ExecutionError {
 pub type ImportedFunc = for<'f> fn(&'f mut VmStack);
 
 pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
+    ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
     func_name: &ByteStr,
     args: TArgs,
@@ -444,12 +467,11 @@ pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
 
     // TODO: check result types
 
-    let mut ctx = VmContext::new();
     let mut args_mem = Serializer {
         buf: Vec::new(),
     };
     args.write_to(&mut args_mem);
-    evaluate(&mut ctx, module, func_idx, &args_mem.buf, memory, imports, execution_ctx);
+    evaluate(ctx, module, func_idx, &args_mem.buf, memory, imports, execution_ctx);
     TResult::pop(&mut ctx.stack).map_err(ExecutionError::EvaluationError)
 }
 
@@ -478,7 +500,7 @@ pub fn evaluate<'code>(
         let pos = current_func.offset + reader.pos();
 
         #[cfg(debug_assertions)]
-        let opcode_reader = reader.clone();
+            let opcode_reader = reader.clone();
         let op = match reader.read_u8() {
             Ok(op) => op,
             Err(ParserError::EndOfStream { .. }) => {
@@ -499,6 +521,8 @@ pub fn evaluate<'code>(
             _ = parse_opcode::<true>(&mut reader, pos, x, &mut ParserState::default());
             drop(reader);
         }
+
+        ctx.executed_instr[op as usize] += 1;
 
         match op {
             0x00 => {

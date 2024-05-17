@@ -46,9 +46,11 @@ async fn main(_spawner: Spawner) {
         });
     }
 
+    let mut ctx = VmContext::new();
+
     loop {
         let start = SystemTimer::now();
-        let result = execute_function::<(u32,), u32>(&module, b"entry".into(), (12u32,), &[], &imports, &mut MyCtx);
+        let result = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (12u32,), &[], &imports, &mut MyCtx);
         let elapsed = SystemTimer::now() - start;
         println!("calculated: {result:?} | ticks: {elapsed}");
     }
