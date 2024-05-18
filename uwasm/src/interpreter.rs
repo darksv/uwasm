@@ -327,10 +327,10 @@ impl UntypedMemorySpan {
     }
 }
 
+#[inline]
 fn copy_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
-    let non_params_locals_bytes: usize = func_body.non_param_locals().map(|ty| ty.len_bytes()).sum();
     locals.extend_from_slice(params_data);
-    locals.resize(locals.len() + non_params_locals_bytes, 0);
+    locals.resize(locals.len() + func_body.non_param_locals_len_in_bytes, 0);
 }
 
 #[derive(Debug)]

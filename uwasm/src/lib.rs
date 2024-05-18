@@ -83,6 +83,8 @@ pub struct FuncBody<'code> {
     locals_offsets: Vec<usize>,
     // total length of parameters that this function accepts
     params_len_in_bytes: usize,
+    // total length of internal function locals
+    non_param_locals_len_in_bytes: usize,
 }
 
 impl fmt::Debug for FuncBody<'_> {
@@ -109,12 +111,6 @@ impl fmt::Debug for FuncBody<'_> {
                 Ok(())
             })
             .finish()
-    }
-}
-
-impl<'code> FuncBody<'code> {
-    fn non_param_locals(&self) -> impl Iterator<Item=TypeKind> + '_ {
-        self.locals_types.iter().skip(self.signature.params.len()).copied()
     }
 }
 
@@ -324,6 +320,10 @@ pub fn parse<'code>(
                         .iter()
                         .map(|t| t.len_bytes())
                         .sum();
+                    let non_param_locals_len_in_bytes = locals_types[signature.params.len()..]
+                        .iter()
+                        .map(|ty| ty.len_bytes())
+                        .sum();
                     functions[imports + func_idx].body = Some(FuncBody {
                         signature,
                         locals_offsets: offsets,
@@ -332,6 +332,7 @@ pub fn parse<'code>(
                         code,
                         jump_targets,
                         params_len_in_bytes,
+                        non_param_locals_len_in_bytes,
                     });
                 }
             }
