@@ -12,6 +12,10 @@ impl uwasm::Context for MyCtx {
     fn write_fmt(&mut self, args: Arguments) {
         std::io::stdout().write_fmt(args).unwrap()
     }
+
+    fn ticks(&self) -> u64 {
+        0
+    }
 }
 
 #[derive(Debug)]

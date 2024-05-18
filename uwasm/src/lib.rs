@@ -823,6 +823,10 @@ mod tests {
 
     impl Context for MyCtx {
         fn write_fmt(&mut self, _args: Arguments) {}
+
+        fn ticks(&self) -> u64 {
+            0
+        }
     }
 
     fn native_factorial(n: u32) -> u32 {
