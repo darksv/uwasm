@@ -817,7 +817,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
 mod tests {
     use core::fmt::Arguments;
 
-    use crate::{Context, evaluate, parse, VmContext};
+    use crate::{Context, execute_function, parse, VmContext};
 
     struct MyCtx;
 
@@ -839,9 +839,8 @@ mod tests {
             parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            evaluate(&mut ctx, &module, 0, &(i as f64).to_le_bytes(), &[], &[], &mut MyCtx);
-
-            assert_eq!(ctx.stack.pop_f64(), Some(native_factorial(i) as f64));
+            let result = execute_function::<(f64,), f64>(&mut ctx, &module, b"fac".into(), (i as f64,), &[], &[], &mut MyCtx).unwrap();
+            assert_eq!(result, native_factorial(i) as f64);
         }
     }
 
@@ -852,8 +851,8 @@ mod tests {
         let mut ctx = VmContext::new();
         for i in 0..10i32 {
             for j in 10..20i32 {
-                evaluate(&mut ctx, &module, 1, &[i.to_le_bytes(), j.to_le_bytes()].concat(), &[], &[], &mut MyCtx);
-                assert_eq!(ctx.stack.pop_i32(), Some(j - i));
+                let result = execute_function::<(i32, i32), i32>(&mut ctx, &module, b"reverseSub".into(), (i, j), &[], &[], &mut MyCtx).unwrap();
+                assert_eq!(result, j - i);
             }
         }
     }
@@ -865,8 +864,8 @@ mod tests {
         let mut ctx = VmContext::new();
         let numbers = [1.23f32, 4.56];
         let data = unsafe { core::slice::from_raw_parts(numbers.as_ptr().cast(), numbers.len() * 4) };
-        evaluate(&mut ctx, &module, 0, &[0u32.to_le_bytes(), (numbers.len() as u32).to_le_bytes()].concat(), data, &[], &mut MyCtx);
-        assert_eq!(ctx.stack.pop_f32(), Some(5.79));
+        let result = execute_function::<(u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &[], &mut MyCtx).unwrap();
+        assert_eq!(result, 5.79);
     }
 
     #[test]
@@ -876,7 +875,7 @@ mod tests {
         let mut ctx = VmContext::new();
         let numbers = [1.23f32, 4.56, -10.0];
         let data = unsafe { core::slice::from_raw_parts(numbers.as_ptr().cast(), numbers.len() * 4) };
-        evaluate(&mut ctx, &module, 0, &[0u32.to_le_bytes(), (numbers.len() as u32).to_le_bytes()].concat(), data, &[], &mut MyCtx);
-        assert_eq!(ctx.stack.pop_f32(), Some(-4.21));
+        let result = execute_function::<(u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &[], &mut MyCtx).unwrap();
+        assert_eq!(result, -4.21);
     }
 }
