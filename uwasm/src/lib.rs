@@ -656,6 +656,14 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             // i32.ge_u
             writeln!(ctx, "i32.ge_u");
         }
+        0x56 => {
+            // i64.gt_u
+            writeln!(ctx, "i64.gt_u");
+        }
+        0x5a => {
+            // i64.ge_u
+            writeln!(ctx, "i64.ge_u");
+        }
         0x5c => {
             // f32.ne
             writeln!(ctx, "f32.ne");
@@ -756,6 +764,18 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             // i64.mul
             writeln!(ctx, "i64.mul");
         }
+        0x80 => {
+            // i64.div_u
+            writeln!(ctx, "i64.div_u");
+        }
+        0x84 => {
+            // i64.or
+            writeln!(ctx, "i64.or");
+        }
+        0x86 => {
+            // i64.shl
+            writeln!(ctx, "i64.shl");
+        }
         0x88 => {
             // i64.shr_u
             writeln!(ctx, "i64.shr_u");
@@ -805,8 +825,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             writeln!(ctx, "i32.extend16_s");
         }
         _ => {
-            writeln!(ctx, "{:?}", &reader);
-            todo!("opcode {op:02x?} @ {pos:02x}")
+            writeln!(ctx, "opcode {op:02x?} @ {pos:02x}")
         }
     }
 
