@@ -137,6 +137,16 @@ impl fmt::Debug for Global<'_> {
     }
 }
 
+fn offsets_of_types(types: &[TypeKind]) -> Vec<usize> {
+    let mut offsets = Vec::with_capacity(types.len());
+    let mut offset = 0;
+    for param in types.iter() {
+        offsets.push(offset);
+        offset += param.len_bytes();
+    }
+    offsets
+}
+
 #[allow(unused)]
 pub fn parse<'code>(
     code: &'code [u8],
@@ -329,13 +339,7 @@ pub fn parse<'code>(
                         }
                     }
 
-                    let mut offsets = Vec::with_capacity(signature.params.len() + locals_types.len());
-                    let mut offset = 0;
-                    for param in locals_types.iter() {
-                        offsets.push(offset);
-                        offset += param.len_bytes();
-                    }
-
+                    let offsets = offsets_of_types(&locals_types);
                     writeln!(ctx, "offsets={:?}", offsets);
 
                     let CodeInfo { offset, code, jump_targets } = parse_code(&mut reader, ctx)?;
