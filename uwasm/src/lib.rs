@@ -53,6 +53,7 @@ pub trait Context {
 pub struct WasmModule<'code> {
     functions: Vec<Func<'code>>,
     globals: Vec<Global<'code>>,
+    globals_offsets: Vec<usize>,
 }
 
 impl<'code> WasmModule<'code> {
@@ -137,10 +138,10 @@ impl fmt::Debug for Global<'_> {
     }
 }
 
-fn offsets_of_types(types: &[TypeKind]) -> Vec<usize> {
+fn offsets_of_types(types: impl ExactSizeIterator<Item=TypeKind>) -> Vec<usize> {
     let mut offsets = Vec::with_capacity(types.len());
     let mut offset = 0;
-    for param in types.iter() {
+    for param in types {
         offsets.push(offset);
         offset += param.len_bytes();
     }
@@ -339,7 +340,7 @@ pub fn parse<'code>(
                         }
                     }
 
-                    let offsets = offsets_of_types(&locals_types);
+                    let offsets = offsets_of_types(locals_types.iter().copied());
                     writeln!(ctx, "offsets={:?}", offsets);
 
                     let CodeInfo { offset, code, jump_targets } = parse_code(&mut reader, ctx)?;
@@ -367,7 +368,8 @@ pub fn parse<'code>(
         }
     }
 
-    Ok(WasmModule { functions, globals })
+    let globals_offsets = offsets_of_types(globals.iter().map(|it| it.kind));
+    Ok(WasmModule { functions, globals, globals_offsets })
 }
 
 struct CodeInfo<'code> {
