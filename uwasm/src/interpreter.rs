@@ -267,22 +267,22 @@ impl UntypedMemorySpan {
     #[inline]
     fn read_param_raw<const N: usize>(
         &self,
-        func: &FuncBody,
+        offsets: &[usize],
         idx: usize,
     ) -> Option<&[u8; N]> {
-        let offset = func.locals_offsets.get(idx).copied()?;
+        let offset = offsets.get(idx).copied()?;
         self.data.get(offset..)?.first_chunk()
     }
 
     #[inline]
     fn write_param_raw<const N: usize>(
         &mut self,
-        func: &FuncBody,
+        offsets: &[usize],
         idx: usize,
         data: [u8; N],
     ) -> Option<()> {
         // FIXME
-        let offset = func.locals_offsets.get(idx).copied()?;
+        let offset = offsets.get(idx).copied()?;
         self.data.get_mut(offset..)?
             .first_chunk_mut::<N>()?
             .copy_from_slice(&data);
@@ -290,39 +290,39 @@ impl UntypedMemorySpan {
     }
 
     #[inline]
-    fn push_into(&self, stack: &mut VmStack, local_idx: usize, func: &FuncBody) {
-        match func.locals_types[local_idx] {
+    fn push_into(&self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) {
+        match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 => stack.push_bytes(TypeKind::F32, *self.read_param_raw::<4>(&func, local_idx).unwrap()),
-            TypeKind::F64 => stack.push_bytes(TypeKind::F64, *self.read_param_raw::<8>(&func, local_idx).unwrap()),
-            TypeKind::I32 => stack.push_bytes(TypeKind::I32, *self.read_param_raw::<4>(&func, local_idx).unwrap()),
-            TypeKind::I64 => stack.push_bytes(TypeKind::I64, *self.read_param_raw::<8>(&func, local_idx).unwrap()),
+            TypeKind::F32 => stack.push_bytes(TypeKind::F32, *self.read_param_raw::<4>(offsets, var_idx).unwrap()),
+            TypeKind::F64 => stack.push_bytes(TypeKind::F64, *self.read_param_raw::<8>(offsets, var_idx).unwrap()),
+            TypeKind::I32 => stack.push_bytes(TypeKind::I32, *self.read_param_raw::<4>(offsets, var_idx).unwrap()),
+            TypeKind::I64 => stack.push_bytes(TypeKind::I64, *self.read_param_raw::<8>(offsets, var_idx).unwrap()),
         }
     }
 
     #[inline]
-    fn pop_from(&mut self, stack: &mut VmStack, local_idx: usize, func: &FuncBody) {
-        match func.locals_types[local_idx] {
+    fn pop_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) {
+        match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 => self.write_param_raw::<4>(&func, local_idx, stack.pop_f32().unwrap().to_ne_bytes()).unwrap(),
-            TypeKind::F64 => self.write_param_raw::<8>(&func, local_idx, stack.pop_f64().unwrap().to_ne_bytes()).unwrap(),
-            TypeKind::I32 => self.write_param_raw::<4>(&func, local_idx, stack.pop_i32().unwrap().to_ne_bytes()).unwrap(),
-            TypeKind::I64 => self.write_param_raw::<8>(&func, local_idx, stack.pop_i64().unwrap().to_ne_bytes()).unwrap(),
+            TypeKind::F32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_f32().unwrap().to_ne_bytes()).unwrap(),
+            TypeKind::F64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_f64().unwrap().to_ne_bytes()).unwrap(),
+            TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_i32().unwrap().to_ne_bytes()).unwrap(),
+            TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_i64().unwrap().to_ne_bytes()).unwrap(),
         }
     }
 
     #[inline]
-    fn copy_from(&mut self, stack: &mut VmStack, local_idx: usize, func: &FuncBody) {
-        match func.locals_types[local_idx] {
+    fn copy_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) {
+        match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 | TypeKind::I32 => self.write_param_raw::<4>(&func, local_idx, stack.peek_bytes().unwrap()).unwrap(),
-            TypeKind::F64 | TypeKind::I64 => self.write_param_raw::<8>(&func, local_idx, stack.peek_bytes().unwrap()).unwrap(),
+            TypeKind::F32 | TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.peek_bytes().unwrap()).unwrap(),
+            TypeKind::F64 | TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.peek_bytes().unwrap()).unwrap(),
         }
     }
 }
@@ -691,21 +691,21 @@ pub fn evaluate<'code>(
                 );
 
                 let local_idx = reader.read_u8().unwrap();
-                locals.push_into(&mut ctx.stack, local_idx as usize, &current_func);
+                locals.push_into(&mut ctx.stack, local_idx as usize, current_func.locals_types[local_idx as usize], &current_func.locals_offsets);
             }
             0x21 => {
                 // local.set <local>
                 let local_idx = reader.read_u8().unwrap();
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
-                ).pop_from(&mut ctx.stack, local_idx as usize, &current_func);
+                ).pop_from(&mut ctx.stack, local_idx as usize, current_func.locals_types[local_idx as usize], &current_func.locals_offsets);
             }
             0x22 => {
                 // local.tee <local>
                 let local_idx = reader.read_u8().unwrap();
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
-                ).copy_from(&mut ctx.stack, local_idx as usize, &current_func);
+                ).copy_from(&mut ctx.stack, local_idx as usize, current_func.locals_types[local_idx as usize], &current_func.locals_offsets);
             }
             0x28..=0x35 => {
                 // i32.load     0x28
