@@ -232,10 +232,11 @@ pub fn parse<'code>(
             SectionKind::Global => {
                 writeln!(ctx, "Found global section");
                 let num_globals = reader.read_usize()?;
-                for _ in 0..num_globals {
+                for i in 0..num_globals {
                     let kind = reader.read::<TypeKind>()?;
                     let global_mut = reader.read_u8()?;
-                    let _ = reader.read_delimited(0x0B); // FIXME
+                    writeln!(ctx, "global #{i}: {:?} mut={}", kind, global_mut);
+                    let _code = parse_code(&mut reader, ctx)?;
                 }
             }
             SectionKind::Export => {
@@ -433,16 +434,18 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
         }
         0x0b => {
             // end
-            writeln!(ctx, "end");
             if !ONLY_PRINT {
+                write!(ctx, "end");
                 if let Some(BlockMeta { kind, offset: start_offset }) = state.blocks.pop() {
-                    writeln!(ctx, "// end {:?} @ {:02X}", kind, pos);
+                    writeln!(ctx, " // {:?} @ {:02X}", kind, pos);
                     state.jump_targets.insert(start_offset, pos + 1 - func_offset);
                 } else {
                     // end of function
-                    writeln!(ctx, "// end of function");
+                    writeln!(ctx, " // code");
                     return Ok(ControlFlow::Break(()));
                 }
+            } else {
+                writeln!(ctx, "end");
             }
         }
         0x0c => {
