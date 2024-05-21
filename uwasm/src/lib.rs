@@ -52,6 +52,7 @@ pub trait Context {
 #[derive(Debug)]
 pub struct WasmModule<'code> {
     functions: Vec<Func<'code>>,
+    globals: Vec<Global<'code>>,
 }
 
 impl<'code> WasmModule<'code> {
@@ -121,6 +122,21 @@ pub struct Func<'code> {
     signature: Option<usize>,
 }
 
+struct Global<'c> {
+    kind: TypeKind,
+    mutability: u8,
+    initializer: CodeInfo<'c>,
+}
+
+impl fmt::Debug for Global<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Global")
+            .field("kind", &self.kind)
+            .field("mutability", &self.mutability)
+            .finish()
+    }
+}
+
 #[allow(unused)]
 pub fn parse<'code>(
     code: &'code [u8],
@@ -132,6 +148,7 @@ pub fn parse<'code>(
     let mut functions: Vec<_> = Vec::new();
     let mut signatures = Vec::new();
     let mut imports = 0;
+    let mut globals = Vec::new();
 
     writeln!(ctx, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -236,7 +253,13 @@ pub fn parse<'code>(
                     let kind = reader.read::<TypeKind>()?;
                     let global_mut = reader.read_u8()?;
                     writeln!(ctx, "global #{i}: {:?} mut={}", kind, global_mut);
-                    let _code = parse_code(&mut reader, ctx)?;
+                    let code = parse_code(&mut reader, ctx)?;
+
+                    globals.push(Global {
+                        kind,
+                        mutability: global_mut,
+                        initializer: code,
+                    });
                 }
             }
             SectionKind::Export => {
@@ -340,7 +363,7 @@ pub fn parse<'code>(
         }
     }
 
-    Ok(WasmModule { functions })
+    Ok(WasmModule { functions, globals })
 }
 
 struct CodeInfo<'code> {
