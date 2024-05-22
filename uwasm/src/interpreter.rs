@@ -491,7 +491,7 @@ pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
         buf: Vec::new(),
     };
     args.write_to(&mut args_mem);
-    evaluate(ctx, module, func_idx, &args_mem.buf, memory, imports, execution_ctx);
+    evaluate(ctx, module, func_idx, &args_mem.buf, &mut [0; 1024], memory, imports, execution_ctx);
     TResult::pop(&mut ctx.stack).map_err(ExecutionError::EvaluationError)
 }
 
@@ -500,6 +500,7 @@ pub fn evaluate<'code>(
     module: &'code WasmModule<'code>,
     func_idx: usize,
     args: &[u8],
+    globals: &mut [u8],
     memory: &[u8],
     imports: &[ImportedFunc],
     #[allow(unused)]
@@ -706,6 +707,28 @@ pub fn evaluate<'code>(
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
                 ).copy_from(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
+            }
+            0x23 => {
+                // global.get <global>
+                let global_idx = reader.read_usize().unwrap();
+                UntypedMemorySpan::from_slice(globals)
+                    .push_into(
+                        &mut ctx.stack,
+                        global_idx,
+                        module.globals[global_idx].kind,
+                        &module.globals_offsets
+                    );
+            }
+            0x24 => {
+                // global.set <global>
+                let global_idx = reader.read_usize().unwrap();
+                UntypedMemorySpan::from_slice_mut(globals)
+                    .pop_from(
+                        &mut ctx.stack,
+                        global_idx,
+                        module.globals[global_idx].kind,
+                        &module.globals_offsets
+                    );
             }
             0x28..=0x35 => {
                 // i32.load     0x28
