@@ -690,22 +690,22 @@ pub fn evaluate<'code>(
                     &ctx.locals[frame.locals_offset..]
                 );
 
-                let local_idx = reader.read_u8().unwrap();
-                locals.push_into(&mut ctx.stack, local_idx as usize, current_func.locals_types[local_idx as usize], &current_func.locals_offsets);
+                let local_idx = reader.read_usize().unwrap();
+                locals.push_into(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
             }
             0x21 => {
                 // local.set <local>
-                let local_idx = reader.read_u8().unwrap();
+                let local_idx = reader.read_usize().unwrap();
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
-                ).pop_from(&mut ctx.stack, local_idx as usize, current_func.locals_types[local_idx as usize], &current_func.locals_offsets);
+                ).pop_from(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
             }
             0x22 => {
                 // local.tee <local>
-                let local_idx = reader.read_u8().unwrap();
+                let local_idx = reader.read_usize().unwrap();
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
-                ).copy_from(&mut ctx.stack, local_idx as usize, current_func.locals_types[local_idx as usize], &current_func.locals_offsets);
+                ).copy_from(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
             }
             0x28..=0x35 => {
                 // i32.load     0x28
