@@ -362,6 +362,13 @@ impl Memory {
         Some(raw)
     }
 
+    #[inline]
+    fn write_bytes_at<const N: usize>(&mut self, offset: usize, bytes: &[u8; N]) {
+        let (_, data) = self.data.split_at_mut_checked(offset).unwrap();
+        let (raw, _) = data.split_first_chunk_mut::<N>().unwrap();
+        raw.copy_from_slice(bytes);
+    }
+
     fn read_i8(&self, offset: usize) -> Option<i8> {
         self.read_bytes_at(offset).map(i8::from_ne_bytes)
     }
@@ -376,6 +383,22 @@ impl Memory {
 
     fn read_u16(&self, offset: usize) -> Option<u16> {
         self.read_bytes_at(offset).map(u16::from_ne_bytes)
+    }
+
+    fn write_u8(&mut self, offset: usize, value: u8) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    fn write_u16(&mut self, offset: usize, value: u16) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    fn write_i32(&mut self, offset: usize, value: i32) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    fn write_u64(&mut self, offset: usize, value: u64) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
     }
 
     fn read_i32(&self, offset: usize) -> Option<i32> {
@@ -463,7 +486,7 @@ pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
     module: &'code WasmModule<'code>,
     func_name: &ByteStr,
     args: TArgs,
-    memory: &[u8],
+    memory: &mut [u8],
     imports: &[ImportedFunc],
     execution_ctx: &mut impl Context,
 ) -> Result<TResult, ExecutionError> {
@@ -501,7 +524,7 @@ pub fn evaluate<'code>(
     func_idx: usize,
     args: &[u8],
     globals: &mut [u8],
-    memory: &[u8],
+    memory: &mut [u8],
     imports: &[ImportedFunc],
     #[allow(unused)]
     x: &mut impl Context,
@@ -716,7 +739,7 @@ pub fn evaluate<'code>(
                         &mut ctx.stack,
                         global_idx,
                         module.globals[global_idx].kind,
-                        &module.globals_offsets
+                        &module.globals_offsets,
                     );
             }
             0x24 => {
@@ -727,7 +750,7 @@ pub fn evaluate<'code>(
                         &mut ctx.stack,
                         global_idx,
                         module.globals[global_idx].kind,
-                        &module.globals_offsets
+                        &module.globals_offsets,
                     );
             }
             0x28..=0x35 => {
@@ -764,6 +787,46 @@ pub fn evaluate<'code>(
                     0x33 => ctx.stack.push_i64(mem.read_u16(offset).unwrap() as i64),
                     0x34 => ctx.stack.push_i64(mem.read_i32(offset).unwrap() as i64),
                     0x35 => ctx.stack.push_i64(mem.read_u32(offset).unwrap() as i64),
+                    _ => unreachable!(),
+                }
+            }
+            0x36..=0x3e => {
+                // i32.store 	0x36
+                // i64.store 	0x37
+                // f32.store 	0x38
+                // f64.store 	0x39
+                // i32.store8 	0x3a
+                // i32.store16 	0x3b
+                // i64.store8 	0x3c
+                // i64.store16 	0x3d
+                // i64.store32 	0x3e
+                let mem = Memory::from_slice_mut(memory);
+                let idx = ctx.stack.pop_u32().unwrap() as usize;
+                let _align = reader.read_usize().unwrap();
+                let offset = reader.read_usize().unwrap() + idx;
+
+                match op {
+                    0x36 => {
+                        // i32.store
+                        mem.write_i32(offset, ctx.stack.pop_u32().unwrap() as i32);
+                    }
+                    0x37 => {
+                        // i64.store
+                        mem.write_u64(offset, ctx.stack.pop_i64().unwrap() as u64);
+                    }
+                    0x38 => todo!(), // f32.store
+                    0x39 => todo!(), // f64.store
+                    0x3a => {
+                        // i32.store8
+                        mem.write_u8(offset, ctx.stack.pop_u32().unwrap() as u8);
+                    }
+                    0x3b => {
+                        // i32.store16
+                        mem.write_u16(offset, ctx.stack.pop_u32().unwrap() as u16);
+                    }
+                    0x3c => todo!(), // i64.store8
+                    0x3d => todo!(), // i64.store16
+                    0x3e => todo!(), // i64.store32
                     _ => unreachable!(),
                 }
             }
@@ -850,6 +913,10 @@ pub fn evaluate<'code>(
             0x6d => {
                 // i32.div_s
                 ctx.stack.inplace_bin_op(|a: i32, b: i32| a / b).unwrap();
+            }
+            0x6e => {
+                // i32.div_u
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a / b).unwrap();
             }
             0x71 => {
                 // i32.and
