@@ -363,7 +363,9 @@ impl Memory {
     }
 
     #[inline]
+    #[track_caller]
     fn write_bytes_at<const N: usize>(&mut self, offset: usize, bytes: &[u8; N]) {
+        assert!(offset + N <= self.data.len(), "offset={offset} data={n}", n=self.data.len());
         let (_, data) = self.data.split_at_mut_checked(offset).unwrap();
         let (raw, _) = data.split_first_chunk_mut::<N>().unwrap();
         raw.copy_from_slice(bytes);
@@ -479,7 +481,7 @@ pub enum ExecutionError {
     MissingFunctionBody,
 }
 
-pub type ImportedFunc = for<'f> fn(&'f mut VmStack);
+pub type ImportedFunc = fn(&mut VmStack, &mut [u8]);
 
 pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
     ctx: &mut VmContext<'code>,
@@ -487,6 +489,7 @@ pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
     func_name: &ByteStr,
     args: TArgs,
     memory: &mut [u8],
+    globals: &mut [u8],
     imports: &[ImportedFunc],
     execution_ctx: &mut impl Context,
 ) -> Result<TResult, ExecutionError> {
@@ -514,7 +517,7 @@ pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
         buf: Vec::new(),
     };
     args.write_to(&mut args_mem);
-    evaluate(ctx, module, func_idx, &args_mem.buf, &mut [0; 1024], memory, imports, execution_ctx);
+    evaluate(ctx, module, func_idx, &args_mem.buf, globals, memory, imports, execution_ctx);
     TResult::pop(&mut ctx.stack).map_err(ExecutionError::EvaluationError)
 }
 
@@ -694,7 +697,7 @@ pub fn evaluate<'code>(
                 } else {
                     #[cfg(debug_assertions)]
                     writeln!(x, "calling imported function {}", func_idx);
-                    imports[func_idx](&mut ctx.stack);
+                    imports[func_idx](&mut ctx.stack, memory);
                 }
             }
             0x1b => {
@@ -801,28 +804,40 @@ pub fn evaluate<'code>(
                 // i64.store16 	0x3d
                 // i64.store32 	0x3e
                 let mem = Memory::from_slice_mut(memory);
-                let idx = ctx.stack.pop_u32().unwrap() as usize;
                 let _align = reader.read_usize().unwrap();
-                let offset = reader.read_usize().unwrap() + idx;
+                let base_offset = reader.read_usize().unwrap();
 
                 match op {
                     0x36 => {
                         // i32.store
-                        mem.write_i32(offset, ctx.stack.pop_u32().unwrap() as i32);
+                        let val = ctx.stack.pop_u32().unwrap() as i32;
+                        let idx = ctx.stack.pop_u32().unwrap() as usize;
+                        let offset = base_offset + idx;
+                        writeln!(x, "i32.store: {offset} <- {val}");
+                        mem.write_i32(offset, val);
                     }
                     0x37 => {
                         // i64.store
-                        mem.write_u64(offset, ctx.stack.pop_i64().unwrap() as u64);
+                        let val = ctx.stack.pop_i64().unwrap() as u64;
+                        let idx = ctx.stack.pop_u32().unwrap() as usize;
+                        let offset = base_offset + idx;
+                        mem.write_u64(offset, val);
                     }
                     0x38 => todo!(), // f32.store
                     0x39 => todo!(), // f64.store
                     0x3a => {
                         // i32.store8
-                        mem.write_u8(offset, ctx.stack.pop_u32().unwrap() as u8);
+                        let val = ctx.stack.pop_u32().unwrap() as u8;
+                        let idx = ctx.stack.pop_u32().unwrap() as usize;
+                        let offset = base_offset + idx;
+                        mem.write_u8(offset, val);
                     }
                     0x3b => {
                         // i32.store16
-                        mem.write_u16(offset, ctx.stack.pop_u32().unwrap() as u16);
+                        let val = ctx.stack.pop_u32().unwrap() as u16;
+                        let idx = ctx.stack.pop_u32().unwrap() as usize;
+                        let offset = base_offset + idx;
+                        mem.write_u16(offset, val);
                     }
                     0x3c => todo!(), // i64.store8
                     0x3d => todo!(), // i64.store16

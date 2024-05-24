@@ -565,10 +565,10 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
             let name = match op {
-                0x28 => "i32",
-                0x29 => "i64",
-                0x2a => "f32",
-                0x2b => "f64",
+                0x28 => "i32.load",
+                0x29 => "i64.load",
+                0x2a => "f32.load",
+                0x2b => "f64.load",
                 0x2c => "i32.load8_s",
                 0x2d => "i32.load8_u",
                 0x2e => "i32.load16_s",
@@ -890,7 +890,7 @@ mod tests {
             parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            let result = execute_function::<(f64,), f64>(&mut ctx, &module, b"fac".into(), (i as f64,), &[], &[], &mut MyCtx).unwrap();
+            let result = execute_function::<(f64, ), f64>(&mut ctx, &module, b"fac".into(), (i as f64, ), &mut [], &mut [], &[], &mut MyCtx).unwrap();
             assert_eq!(result, native_factorial(i) as f64);
         }
     }
@@ -902,7 +902,7 @@ mod tests {
         let mut ctx = VmContext::new();
         for i in 0..10i32 {
             for j in 10..20i32 {
-                let result = execute_function::<(i32, i32), i32>(&mut ctx, &module, b"reverseSub".into(), (i, j), &[], &[], &mut MyCtx).unwrap();
+                let result = execute_function::<(i32, i32), i32>(&mut ctx, &module, b"reverseSub".into(), (i, j), &mut [], &mut [], &[], &mut MyCtx).unwrap();
                 assert_eq!(result, j - i);
             }
         }
@@ -913,9 +913,9 @@ mod tests {
         let module =
             parse(include_bytes!("../../tests/sum_array.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
-        let numbers = [1.23f32, 4.56];
-        let data = unsafe { core::slice::from_raw_parts(numbers.as_ptr().cast(), numbers.len() * 4) };
-        let result = execute_function::<(u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &[], &mut MyCtx).unwrap();
+        let mut numbers = [1.23f32, 4.56];
+        let data = unsafe { core::slice::from_raw_parts_mut(numbers.as_mut_ptr().cast(), numbers.len() * 4) };
+        let result = execute_function::<(u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &mut [], &[], &mut MyCtx).unwrap();
         assert_eq!(result, 5.79);
     }
 
@@ -924,9 +924,9 @@ mod tests {
         let module =
             parse(include_bytes!("../../tests/sum_array_rec.wasm"), &mut MyCtx).expect("parse module");
         let mut ctx = VmContext::new();
-        let numbers = [1.23f32, 4.56, -10.0];
-        let data = unsafe { core::slice::from_raw_parts(numbers.as_ptr().cast(), numbers.len() * 4) };
-        let result = execute_function::<(u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &[], &mut MyCtx).unwrap();
+        let mut numbers = [1.23f32, 4.56, -10.0];
+        let data = unsafe { core::slice::from_raw_parts_mut(numbers.as_mut_ptr().cast(), numbers.len() * 4) };
+        let result = execute_function::<(u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &mut [], &[], &mut MyCtx).unwrap();
         assert_eq!(result, -4.21);
     }
 }
