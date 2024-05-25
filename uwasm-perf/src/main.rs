@@ -28,11 +28,10 @@ fn main() -> Result<(), ParserError> {
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
             b"print" => |stack, memory| unsafe {
-                let _foo = stack.pop_i32().unwrap();
-                let size = stack.pop_i32().unwrap();
-                let ptr = stack.pop_i32().unwrap();
+                let size = stack.pop_i32().unwrap() as usize;
+                let ptr = stack.pop_i32().unwrap() as usize;
+                println!(">>> PRINT: {:?}", ByteStr::from_bytes(&memory[ptr..][..size]));
                 stack.push_i32(0);
-                println!(">>> PRINT: {:?}", ByteStr::from_bytes(&memory));
             },
             _ => todo!("{:?}", name),
         });
@@ -45,11 +44,11 @@ fn main() -> Result<(), ParserError> {
 
     let started = std::time::Instant::now();
     let mut ctx = VmContext::new();
-    for _ in 0u32..n {
+    for n in 0u32..n {
         let mut mem = [0u8; 32];
-        let res = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (123456789u32,), &mut mem, &mut globals, &imports, &mut MyCtx).unwrap();
-        println!("mem={:02X?}", mem);
-        println!("global={:02X?}", globals);
+        let res = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (n,), &mut mem, &mut globals, &imports, &mut MyCtx).unwrap();
+        // println!("mem={:02X?}", mem);
+        // println!("global={:02X?}", globals);
         assert_eq!(res, 0);
     }
     println!("time = {:?}/execution", started.elapsed() / n);

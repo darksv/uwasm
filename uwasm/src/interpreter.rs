@@ -813,6 +813,7 @@ pub fn evaluate<'code>(
                         let val = ctx.stack.pop_u32().unwrap() as i32;
                         let idx = ctx.stack.pop_u32().unwrap() as usize;
                         let offset = base_offset + idx;
+                        #[cfg(debug_assertions)]
                         writeln!(x, "i32.store: {offset} <- {val}");
                         mem.write_i32(offset, val);
                     }
@@ -821,6 +822,8 @@ pub fn evaluate<'code>(
                         let val = ctx.stack.pop_i64().unwrap() as u64;
                         let idx = ctx.stack.pop_u32().unwrap() as usize;
                         let offset = base_offset + idx;
+                        #[cfg(debug_assertions)]
+                        writeln!(x, "i64.store: {offset} <- {val}");
                         mem.write_u64(offset, val);
                     }
                     0x38 => todo!(), // f32.store
@@ -830,6 +833,8 @@ pub fn evaluate<'code>(
                         let val = ctx.stack.pop_u32().unwrap() as u8;
                         let idx = ctx.stack.pop_u32().unwrap() as usize;
                         let offset = base_offset + idx;
+                        #[cfg(debug_assertions)]
+                        writeln!(x, "i32.store8: {offset} <- {val}");
                         mem.write_u8(offset, val);
                     }
                     0x3b => {
@@ -837,6 +842,8 @@ pub fn evaluate<'code>(
                         let val = ctx.stack.pop_u32().unwrap() as u16;
                         let idx = ctx.stack.pop_u32().unwrap() as usize;
                         let offset = base_offset + idx;
+                        #[cfg(debug_assertions)]
+                        writeln!(x, "i32.store16: {offset} <- {val}");
                         mem.write_u16(offset, val);
                     }
                     0x3c => todo!(), // i64.store8

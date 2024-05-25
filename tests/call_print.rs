@@ -42,7 +42,7 @@ fn to_string_u32(num: u32, buffer: &mut [u8]) -> &str {
     let start = pos;
     let result = &buffer[start..max_digits];
 
-    core::str::from_utf8(result).unwrap()
+    unsafe { core::str::from_utf8_unchecked(result) }
 }
 
 #[no_mangle]
