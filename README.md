@@ -31,6 +31,8 @@ When writing commit messages please follow [semantic commit messages](https://gi
 [^1]: https://dl.acm.org/doi/10.1145/3485513
 
 ## Compile and run simple test program on VM
-> rustup add wasm32-unknown-unknown
-> rustc --target=wasm32-unknown-unknown tests/call_print.rs -C panic=abort -O
-> cargo run --bin uwasm-perf -- call_print.wasm 1
+```shell
+rustup add wasm32-unknown-unknown
+rustc --target=wasm32-unknown-unknown tests/call_print.rs -C panic=abort -O
+cargo run --bin uwasm-perf -- call_print.wasm 1
+```
