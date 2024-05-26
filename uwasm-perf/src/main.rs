@@ -21,6 +21,11 @@ fn main() -> Result<(), ParserError> {
     let Some(path) = std::env::args_os().nth(1) else {
         panic!("missing path to .wasm file")
     };
+    let runs = std::env::args()
+        .nth(2)
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(1);
+
     let content = std::fs::read(path).expect("read file");
 
     let module = parse(&content, &mut MyCtx)?;
@@ -30,13 +35,12 @@ fn main() -> Result<(), ParserError> {
             b"print" => |stack, memory| unsafe {
                 let size = stack.pop_i32().unwrap() as usize;
                 let ptr = stack.pop_i32().unwrap() as usize;
-                println!(">>> PRINT: {:?}", ByteStr::from_bytes(&memory[ptr..][..size]));
+                println!(">>> PRINT FROM VM: {:?}", ByteStr::from_bytes(&memory[ptr..][..size]));
                 stack.push_i32(0);
             },
             _ => todo!("{:?}", name),
         });
     }
-    let n = 1_000_000;
 
     let mut globals = Vec::new();
     // stack pointer
@@ -44,14 +48,13 @@ fn main() -> Result<(), ParserError> {
 
     let started = std::time::Instant::now();
     let mut ctx = VmContext::new();
-    for n in 0u32..n {
+    for n in 0u32..runs {
         let mut mem = [0u8; 32];
-        let res = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (n,), &mut mem, &mut globals, &imports, &mut MyCtx).unwrap();
-        // println!("mem={:02X?}", mem);
-        // println!("global={:02X?}", globals);
+        println!(">>> Executing entry function");
+        let res = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (987654321,), &mut mem, &mut globals, &imports, &mut MyCtx).unwrap();
         assert_eq!(res, 0);
     }
-    println!("time = {:?}/execution", started.elapsed() / n);
+    println!("time = {:?}/execution", started.elapsed() / runs);
 
     println!("{:?}", ctx.profile());
 

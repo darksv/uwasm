@@ -229,16 +229,24 @@ impl fmt::Debug for VmStack {
                     TypeKind::Func => todo!(),
                     TypeKind::FuncRef => todo!(),
                     TypeKind::F32 => {
-                        fmt.entry(&reader.read_f32().unwrap());
+                        if let Ok(val) = reader.read_f32() {
+                            fmt.entry(&val);
+                        }
                     }
                     TypeKind::F64 => {
-                        fmt.entry(&reader.read_f64().unwrap());
+                        if let Ok(val) = reader.read_f64() {
+                            fmt.entry(&val);
+                        }
                     }
                     TypeKind::I32 => {
-                        fmt.entry(&reader.read_i32().unwrap());
+                        if let Ok(val) = reader.read_i32() {
+                            fmt.entry(&val);
+                        }
                     }
                     TypeKind::I64 => {
-                        fmt.entry(&reader.read_i64().unwrap());
+                        if let Ok(val) = reader.read_i64() {
+                            fmt.entry(&val);
+                        }
                     }
                 }
             }
@@ -365,7 +373,7 @@ impl Memory {
     #[inline]
     #[track_caller]
     fn write_bytes_at<const N: usize>(&mut self, offset: usize, bytes: &[u8; N]) {
-        assert!(offset + N <= self.data.len(), "offset={offset} data={n}", n=self.data.len());
+        assert!(offset + N <= self.data.len(), "offset={offset} data={n}", n = self.data.len());
         let (_, data) = self.data.split_at_mut_checked(offset).unwrap();
         let (raw, _) = data.split_first_chunk_mut::<N>().unwrap();
         raw.copy_from_slice(bytes);
