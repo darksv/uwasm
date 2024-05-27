@@ -13,7 +13,8 @@ impl Context for MyCtx {
     }
 
     fn ticks(&self) -> u64 {
-        unsafe { _rdtsc() }
+        0
+        // unsafe { _rdtsc() }
     }
 }
 
@@ -35,7 +36,8 @@ fn main() -> Result<(), ParserError> {
             b"print" => |stack, memory| unsafe {
                 let size = stack.pop_i32().unwrap() as usize;
                 let ptr = stack.pop_i32().unwrap() as usize;
-                println!(">>> PRINT FROM VM: {:?}", ByteStr::from_bytes(&memory[ptr..][..size]));
+                let s = ByteStr::from_bytes(&memory[ptr..][..size]);
+                println!(">>> PRINT FROM VM: {:?}", s);
                 stack.push_i32(0);
             },
             _ => todo!("{:?}", name),

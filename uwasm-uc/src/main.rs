@@ -27,6 +27,7 @@ impl Context for MyCtx {
         _ = esp_println::Printer.write_fmt(args);
     }
 
+    #[inline(always)]
     fn ticks(&self) -> u64 {
         SystemTimer::now()
     }
@@ -41,22 +42,28 @@ async fn main(_spawner: Spawner) {
     let _clocks = ClockControl::boot_defaults(system.clock_control).freeze();
     init_heap();
 
-    let module = parse(include_bytes!("../../call_external.wasm"), &mut MyCtx).expect("parse module");
+    let module = parse(include_bytes!("../../call_print.wasm"), &mut MyCtx).expect("parse module");
     let mut imports: Vec<ImportedFunc> = Vec::new();
     for name in module.get_imports() {
-        imports.push(|stack| unsafe {
+        imports.push(|stack, memory| unsafe {
             stack.push_i32(IDX as i32);
             IDX += 1;
         });
     }
 
+    let mut globals = Vec::new();
+    // stack pointer
+    globals.extend_from_slice(&32u64.to_ne_bytes());
+    let mut mem = [0u8; 32];
+
     let mut ctx = VmContext::new();
     loop {
-        ctx.reset_profile();
+        let start = SystemTimer::now();
         for i in 0..100 {
-            let _ = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (12u32,), &[], &imports, &mut MyCtx);
+            let _ = execute_function::<(u32, ), u32>(&mut ctx, &module, b"entry".into(), (12u32, ),  &mut mem, &mut globals, &imports, &mut MyCtx);
         }
-        println!("{:?}", ctx.profile());
+        let elapsed = SystemTimer::now() - start;
+        println!("ticks: {elapsed}");
     }
 }
 

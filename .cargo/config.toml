@@ -1,5 +1,11 @@
 [target.riscv32imc-unknown-none-elf]
 runner = "espflash flash --monitor"
 
+#[build]
+#rustflags = [
+#    "-C", "force-frame-pointers",
+#    "-C", "link-arg=-Tlinkall.x",
+#]
+#
 #[unstable]
 #build-std = ["core", "alloc"]
