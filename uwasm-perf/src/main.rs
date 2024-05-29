@@ -46,12 +46,12 @@ fn main() -> Result<(), ParserError> {
 
     let mut globals = Vec::new();
     // stack pointer
-    globals.extend_from_slice(&32u64.to_ne_bytes());
+    globals.extend_from_slice(&0x1000u64.to_ne_bytes());
 
     let started = std::time::Instant::now();
     let mut ctx = VmContext::new();
     for n in 0u32..runs {
-        let mut mem = [0u8; 32];
+        let mut mem = [0u8; 0x1000];
         println!(">>> Executing entry function");
         let res = execute_function::<(u32,), u32>(&mut ctx, &module, b"entry".into(), (987654321,), &mut mem, &mut globals, &imports, &mut MyCtx).unwrap();
         assert_eq!(res, 0);

@@ -373,7 +373,7 @@ impl Memory {
     #[inline]
     #[track_caller]
     fn write_bytes_at<const N: usize>(&mut self, offset: usize, bytes: &[u8; N]) {
-        assert!(offset + N <= self.data.len(), "offset={offset} data={n}", n = self.data.len());
+        assert!(offset + N <= self.data.len(), "out of bounds write: offset={offset} data={n}", n = self.data.len());
         let (_, data) = self.data.split_at_mut_checked(offset).unwrap();
         let (raw, _) = data.split_first_chunk_mut::<N>().unwrap();
         raw.copy_from_slice(bytes);
@@ -818,9 +818,9 @@ pub fn evaluate<'code>(
                 match op {
                     0x36 => {
                         // i32.store
-                        let val = ctx.stack.pop_u32().unwrap() as i32;
-                        let idx = ctx.stack.pop_u32().unwrap() as usize;
-                        let offset = base_offset + idx;
+                        let val = ctx.stack.pop_i32().unwrap();
+                        let idx = ctx.stack.pop_i32().unwrap() as isize;
+                        let offset = base_offset.checked_add_signed(idx).unwrap();
                         #[cfg(debug_assertions)]
                         writeln!(x, "i32.store: {offset} <- {val}");
                         mem.write_i32(offset, val);

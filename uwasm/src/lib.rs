@@ -587,37 +587,37 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
             // i32.store
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i32.store {} {}", align, offset);
+            writeln!(ctx, "i32.store align={align} offset={offset}");
         }
         0x37 => {
             // i64.store
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i64.store {} {}", align, offset);
+            writeln!(ctx, "i64.store align={align} offset={offset}");
         }
         0x39 => {
             // f64.store
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "f64.store {} {}", align, offset);
+            writeln!(ctx, "f64.store align={align} offset={offset}");
         }
         0x3a => {
             // i32.store8
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i32.store8 {} {}", align, offset);
+            writeln!(ctx, "i32.store8 align={align} offset={offset}");
         }
         0x3b => {
             // i32.store16
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i32.store16 {} {}", align, offset);
+            writeln!(ctx, "i32.store16 align={align} offset={offset}");
         }
         0x3d => {
             // i64.store16
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i64.store16 {} {}", align, offset);
+            writeln!(ctx, "i64.store16 align={align} offset={offset}");
         }
         0x40 => {
             // memory.grow
