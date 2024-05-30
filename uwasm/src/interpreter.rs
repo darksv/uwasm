@@ -336,7 +336,7 @@ impl UntypedMemorySpan {
 }
 
 #[inline]
-fn copy_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
+fn copy_params_and_locals(locals: &mut Vec<u8>, params_data: &[u8], func_body: &FuncBody) {
     locals.extend_from_slice(params_data);
     locals.resize(locals.len() + func_body.non_param_locals_len_in_bytes, 0);
 }
@@ -541,7 +541,7 @@ pub fn evaluate<'code>(
     x: &mut impl Context,
 ) {
     ctx.stack.data.clear();
-    copy_locals(&mut ctx.locals, args, module.get_function_by_index(func_idx).as_ref().unwrap());
+    copy_params_and_locals(&mut ctx.locals, args, module.get_function_by_index(func_idx).as_ref().unwrap());
     ctx.call_stack.clear();
     ctx.call_stack.push(StackFrame::new(
         module,
@@ -691,17 +691,17 @@ pub fn evaluate<'code>(
                 #[cfg(debug_assertions)]
                 writeln!(x, "calling {}", func_idx);
 
-                if let Some(func) = module.get_function_by_index(func_idx) {
+                if let Some(callee) = module.get_function_by_index(func_idx) {
                     ctx.call_stack.push(StackFrame {
                         func_idx,
-                        reader: Reader::new(func.code),
+                        reader: Reader::new(callee.code),
                         locals_offset: ctx.locals.len(),
                         curr_loop_start: None,
                         blocks: Vec::new(),
                     });
-                    let params_mem = &ctx.stack.data[ctx.stack.data.len() - current_func.params_len_in_bytes..];
-                    copy_locals(&mut ctx.locals, params_mem, current_func);
-                    ctx.stack.pop_many(current_func.params_len_in_bytes);
+                    let params_mem = &ctx.stack.data[ctx.stack.data.len() - callee.params_len_in_bytes..];
+                    copy_params_and_locals(&mut ctx.locals, params_mem, callee);
+                    ctx.stack.pop_many(callee.params_len_in_bytes);
                 } else {
                     #[cfg(debug_assertions)]
                     writeln!(x, "calling imported function {}", func_idx);
