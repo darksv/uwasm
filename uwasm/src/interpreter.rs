@@ -948,6 +948,10 @@ pub fn evaluate<'code>(
                 // i32.div_u
                 ctx.stack.inplace_bin_op(|a: u32, b: u32| a / b).unwrap();
             }
+            0x70 => {
+                // i32.rem_u
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a % b).unwrap();
+            }
             0x71 => {
                 // i32.and
                 ctx.stack.inplace_bin_op(|a: i32, b: i32| a & b).unwrap();
@@ -971,6 +975,14 @@ pub fn evaluate<'code>(
             0x7e => {
                 // i64.mul
                 ctx.stack.inplace_bin_op(|a: i64, b: i64| a * b).unwrap();
+            }
+            0x84 => {
+                // i64.or
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a | b).unwrap();
+            }
+            0x86 => {
+                // i64.shl
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a << b).unwrap();
             }
             0x88 => {
                 // i64.shr_u
