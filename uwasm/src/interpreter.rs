@@ -316,10 +316,10 @@ impl UntypedMemorySpan {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_f32().unwrap().to_ne_bytes()).unwrap(),
-            TypeKind::F64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_f64().unwrap().to_ne_bytes()).unwrap(),
-            TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_i32().unwrap().to_ne_bytes()).unwrap(),
-            TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_i64().unwrap().to_ne_bytes()).unwrap(),
+            TypeKind::F32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_f32().unwrap().to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::F64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_f64().unwrap().to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_i32().unwrap().to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_i64().unwrap().to_ne_bytes()).expect("invalid var_index"),
         }
     }
 
@@ -407,6 +407,11 @@ impl Memory {
         self.write_bytes_at(offset, &value.to_ne_bytes());
     }
 
+    fn write_i64(&mut self, offset: usize, value: i64) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    #[track_caller]
     fn write_u64(&mut self, offset: usize, value: u64) {
         self.write_bytes_at(offset, &value.to_ne_bytes());
     }
@@ -827,12 +832,12 @@ pub fn evaluate<'code>(
                     }
                     0x37 => {
                         // i64.store
-                        let val = ctx.stack.pop_i64().unwrap() as u64;
-                        let idx = ctx.stack.pop_u32().unwrap() as usize;
-                        let offset = base_offset + idx;
+                        let val = ctx.stack.pop_i64().unwrap();
+                        let idx = ctx.stack.pop_i32().unwrap() as isize;
+                        let offset = base_offset.checked_add_signed(idx).unwrap();
                         #[cfg(debug_assertions)]
                         writeln!(x, "i64.store: {offset} <- {val}");
-                        mem.write_u64(offset, val);
+                        mem.write_i64(offset, val);
                     }
                     0x38 => todo!(), // f32.store
                     0x39 => todo!(), // f64.store
@@ -1011,6 +1016,10 @@ pub fn evaluate<'code>(
             0xbe => {
                 // f32.reinterpret_i32
                 ctx.stack.inplace_unary_op(|a: i32| f32::from_ne_bytes(a.to_ne_bytes())).unwrap();
+            }
+            0xc0 => {
+                // i32.extend8_s
+                ctx.stack.inplace_unary_op(|a: i32| a).unwrap();
             }
             _ => todo!("opcode {:02x?}", op),
         }

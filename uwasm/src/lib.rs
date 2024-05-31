@@ -112,6 +112,7 @@ impl fmt::Debug for FuncBody<'_> {
                 _ = parse_code(&mut reader, &mut Wrapper(f));
                 Ok(())
             })
+            .field("locals_types", &self.locals_types)
             .finish()
     }
 }
