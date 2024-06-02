@@ -399,7 +399,15 @@ impl Memory {
         self.write_bytes_at(offset, &value.to_ne_bytes());
     }
 
+    fn write_i8(&mut self, offset: usize, value: i8) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
     fn write_u16(&mut self, offset: usize, value: u16) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    fn write_i16(&mut self, offset: usize, value: i16) {
         self.write_bytes_at(offset, &value.to_ne_bytes());
     }
 
@@ -817,47 +825,47 @@ pub fn evaluate<'code>(
                 // i64.store16 	0x3d
                 // i64.store32 	0x3e
                 let mem = Memory::from_slice_mut(memory);
-                let _align = reader.read_usize().unwrap();
-                let base_offset = reader.read_usize().unwrap();
+                let alignment = reader.read_usize().unwrap();
+                let store_offset = reader.read_usize().unwrap();
 
                 match op {
                     0x36 => {
                         // i32.store
                         let val = ctx.stack.pop_i32().unwrap();
                         let idx = ctx.stack.pop_i32().unwrap() as isize;
-                        let offset = base_offset.checked_add_signed(idx).unwrap();
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i32.store: {offset} <- {val}");
+                        writeln!(x, "i32.store: mem[{store_offset}{idx:+}] <- {val}");
+                        let offset = store_offset.checked_add_signed(idx).unwrap();
                         mem.write_i32(offset, val);
                     }
                     0x37 => {
                         // i64.store
                         let val = ctx.stack.pop_i64().unwrap();
                         let idx = ctx.stack.pop_i32().unwrap() as isize;
-                        let offset = base_offset.checked_add_signed(idx).unwrap();
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i64.store: {offset} <- {val}");
+                        writeln!(x, "i64.store: mem[{store_offset}{idx:+}] <- {val}");
+                        let offset = store_offset.checked_add_signed(idx).unwrap();
                         mem.write_i64(offset, val);
                     }
                     0x38 => todo!(), // f32.store
                     0x39 => todo!(), // f64.store
                     0x3a => {
                         // i32.store8
-                        let val = ctx.stack.pop_u32().unwrap() as u8;
-                        let idx = ctx.stack.pop_u32().unwrap() as usize;
-                        let offset = base_offset + idx;
+                        let val = ctx.stack.pop_i32().unwrap() as i8;
+                        let idx = ctx.stack.pop_i32().unwrap() as isize;
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i32.store8: {offset} <- {val}");
-                        mem.write_u8(offset, val);
+                        writeln!(x, "i32.store8: mem[{store_offset}{idx:+}] <- {val}");
+                        let offset = store_offset.checked_add_signed(idx).unwrap();
+                        mem.write_i8(offset, val);
                     }
                     0x3b => {
                         // i32.store16
-                        let val = ctx.stack.pop_u32().unwrap() as u16;
-                        let idx = ctx.stack.pop_u32().unwrap() as usize;
-                        let offset = base_offset + idx;
+                        let val = ctx.stack.pop_i32().unwrap() as i16;
+                        let idx = ctx.stack.pop_i32().unwrap() as isize;
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i32.store16: {offset} <- {val}");
-                        mem.write_u16(offset, val);
+                        writeln!(x, "i32.store16: mem[{store_offset}{idx:+}] <- {val}");
+                        let offset = store_offset.checked_add_signed(idx).unwrap();
+                        mem.write_i16(offset, val);
                     }
                     0x3c => todo!(), // i64.store8
                     0x3d => todo!(), // i64.store16
