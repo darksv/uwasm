@@ -803,6 +803,7 @@ pub fn evaluate<'code>(
                 let dyn_offset = ctx.stack.pop_i32().unwrap();
                 let offset = fixed_offset.checked_add_signed(dyn_offset as _).unwrap();
                 let mem = Memory::from_slice(memory);
+                #[cfg(debug_assertions)]
                 writeln!(x, "load: mem[{fixed_offset}{dyn_offset:+}]");
                 match op {
                     0x28 => ctx.stack.push_i32(mem.read_i32(offset).unwrap()),
