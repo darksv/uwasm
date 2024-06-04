@@ -666,7 +666,12 @@ pub fn evaluate<'code>(
                 // br
                 let depth = reader.read_usize().unwrap();
                 let block_idx = frame.blocks.len() - 1 - depth;
-                reader.skip_to(current_func.jump_targets[&frame.blocks[block_idx].offset] - 1);
+                let block = &frame.blocks[block_idx];
+                let target = match block.kind {
+                    BlockType::Block => current_func.jump_targets[&block.offset] - 1,
+                    BlockType::Loop => block.body_offset,
+                };
+                reader.skip_to(target);
                 // skip blocks that we are no longer executing due to the jump
                 // TODO: check if this is correct
                 frame.blocks.drain(block_idx + 1..);
@@ -675,6 +680,7 @@ pub fn evaluate<'code>(
             }
             0x0d => {
                 // br_if
+                // TODO: dedup with br?
                 let depth = reader.read_usize().unwrap();
                 let block_idx = frame.blocks.len() - 1 - depth;
                 let block = &frame.blocks[block_idx];
