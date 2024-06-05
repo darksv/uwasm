@@ -502,17 +502,17 @@ pub enum ExecutionError {
     MissingFunctionBody,
 }
 
-pub type ImportedFunc = fn(&mut VmStack, &mut [u8]);
+pub type ImportedFunc<TContext> = fn(&mut TContext, &mut VmStack, &mut [u8]);
 
-pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
+pub fn execute_function<'code, TContext: Context, TArgs: FunctionArgs, TResult: Operand>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
     func_name: &ByteStr,
     args: TArgs,
     memory: &mut [u8],
     globals: &mut [u8],
-    imports: &[ImportedFunc],
-    execution_ctx: &mut impl Context,
+    imports: &[ImportedFunc<TContext>],
+    execution_ctx: &mut TContext,
 ) -> Result<TResult, ExecutionError> {
     let Some(func_idx) = module.get_function_index_by_name(func_name) else {
         return Err(ExecutionError::FunctionNotExists);
@@ -542,16 +542,16 @@ pub fn execute_function<'code, TArgs: FunctionArgs, TResult: Operand>(
     TResult::pop(&mut ctx.stack).map_err(ExecutionError::EvaluationError)
 }
 
-pub fn evaluate<'code>(
+pub fn evaluate<'code, TContext: Context>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
     func_idx: usize,
     args: &[u8],
     globals: &mut [u8],
     memory: &mut [u8],
-    imports: &[ImportedFunc],
+    imports: &[ImportedFunc<TContext>],
     #[allow(unused)]
-    x: &mut impl Context,
+    x: &mut TContext,
 ) {
     ctx.stack.data.clear();
     copy_params_and_locals(&mut ctx.locals, args, module.get_function_by_index(func_idx).as_ref().unwrap());
@@ -724,7 +724,7 @@ pub fn evaluate<'code>(
                 } else {
                     #[cfg(debug_assertions)]
                     writeln!(x, "calling imported function {}", func_idx);
-                    imports[func_idx](&mut ctx.stack, memory);
+                    imports[func_idx](x, &mut ctx.stack, memory);
                 }
             }
             0x1b => {
