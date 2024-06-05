@@ -4,9 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-esp-hal = { version = "0.17.0", features = ["embassy-time-timg0", "embassy-integrated-timers", "embassy-executor-thread", "esp32c3", "embedded-hal"] }
-esp-backtrace = { version = "0.11.1", features = ["esp32c3", "panic-handler", "exception-handler", "println"] }
+esp-hal = { version = "0.18.0", features = ["esp32c3", "embedded-hal"] }
+esp-backtrace = { version = "0.12.0", features = ["esp32c3", "panic-handler", "exception-handler", "println"] }
 esp-println = { version = "0.9.1", features = ["esp32c3"] }
-esp-alloc = "0.3.0"
-embassy-executor = "*"
+esp-alloc = "0.4.0"
 uwasm = { path = "../uwasm" }

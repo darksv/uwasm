@@ -1,28 +1,32 @@
 #![no_std]
 #![no_main]
-#![feature(type_alias_impl_trait)]
 
 extern crate alloc;
 
 use alloc::vec::Vec;
 use core::fmt::{Arguments, Write};
-use core::result;
 
 use esp_backtrace as _;
-use embassy_executor::Spawner;
 use esp_println::println;
 use esp_hal::{
-    clock::ClockControl, gpio::IO, peripherals::Peripherals, prelude::*,
-    systimer::SystemTimer,
+    clock::ClockControl, peripherals::Peripherals, prelude::*,
+    gpio::Io, gpio::Level,
+    delay::Delay,
 };
-use uwasm::{Context, evaluate, parse, VmContext, execute_function, ByteStr, VmStack, ImportedFunc};
+use esp_hal::gpio::{AnyOutput, GpioPin, Output};
+use esp_hal::system::SystemControl;
+use esp_hal::timer::systimer::SystemTimer;
+use uwasm::{Context, parse, VmContext, execute_function, ImportedFunc};
 
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
-struct MyCtx;
+struct MyCtx<'io> {
+    led: AnyOutput<'io>,
+    delay: Delay,
+}
 
-impl Context for MyCtx {
+impl Context for MyCtx<'_> {
     fn write_fmt(&mut self, args: Arguments) {
         _ = esp_println::Printer.write_fmt(args);
     }
@@ -33,21 +37,44 @@ impl Context for MyCtx {
     }
 }
 
-static mut IDX: u32 = 0;
-
-#[main]
-async fn main(_spawner: Spawner) {
+#[entry]
+fn main() -> ! {
     let peripherals = Peripherals::take();
-    let system = peripherals.SYSTEM.split();
-    let _clocks = ClockControl::boot_defaults(system.clock_control).freeze();
+    let system = SystemControl::new(peripherals.SYSTEM);
+    let clocks = ClockControl::boot_defaults(system.clock_control).freeze();
+    let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
+
     init_heap();
 
-    let module = parse(include_bytes!("../../call_print.wasm"), &mut MyCtx).expect("parse module");
-    let mut imports: Vec<ImportedFunc> = Vec::new();
+    let mut ctx = MyCtx {
+        led: AnyOutput::new(io.pins.gpio18, Level::High),
+        delay: Delay::new(&clocks),
+    };
+
+    let module = parse(include_bytes!("../../hello_led.wasm"), &mut ctx).expect("parse module");
+    let mut imports: Vec<ImportedFunc<MyCtx>> = Vec::new();
+
+    let delay = Delay::new(&clocks);
+
     for name in module.get_imports() {
-        imports.push(|stack, memory| unsafe {
-            stack.push_i32(IDX as i32);
-            IDX += 1;
+        imports.push(match name.as_bytes() {
+            b"sleep_ms" => |ctx, stack, memory| {
+                let sleep = stack.pop_u32().unwrap();
+                ctx.delay.delay_millis(sleep);
+                println!(">>> sleeping for {sleep} ms");
+            },
+            b"set_output" => |ctx, stack, memory| {
+                let state = stack.pop_u32().unwrap();
+                let pin = stack.pop_u32().unwrap();
+
+                match state {
+                    0 => ctx.led.set_low(),
+                    1 => ctx.led.set_high(),
+                    _ => unimplemented!(),
+                }
+                println!(">>> setting pin {pin} to {state}")
+            },
+            _ => todo!("{:?}", name),
         });
     }
 
@@ -56,11 +83,11 @@ async fn main(_spawner: Spawner) {
     globals.extend_from_slice(&32u64.to_ne_bytes());
     let mut mem = [0u8; 32];
 
-    let mut ctx = VmContext::new();
+    let mut vm_ctx = VmContext::new();
     loop {
         let start = SystemTimer::now();
         for i in 0..100 {
-            let _ = execute_function::<(u32, ), u32>(&mut ctx, &module, b"entry".into(), (12u32, ),  &mut mem, &mut globals, &imports, &mut MyCtx);
+            let _ = execute_function::<MyCtx, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut ctx);
         }
         let elapsed = SystemTimer::now() - start;
         println!("ticks: {elapsed}");
