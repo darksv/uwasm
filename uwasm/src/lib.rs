@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
 
-pub use crate::interpreter::{evaluate, execute_function, StackFrame, UntypedMemorySpan, VmContext, VmStack, ImportedFunc};
+pub use crate::interpreter::{init_globals, evaluate, execute_function, StackFrame, UntypedMemorySpan, VmContext, VmStack, ImportedFunc};
 use crate::parser::{Item, Reader, SectionKind, TypeKind};
 pub use crate::parser::ParserError;
 pub use crate::str::ByteStr;

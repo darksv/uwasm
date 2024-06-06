@@ -2,7 +2,7 @@ extern crate core;
 
 use std::fmt::Arguments;
 use std::io::Write;
-use uwasm::{parse, Context, ParserError, execute_function, VmContext, ImportedFunc, ByteStr};
+use uwasm::{parse, Context, ParserError, execute_function, VmContext, ImportedFunc, ByteStr, init_globals};
 
 struct MyCtx;
 
@@ -44,8 +44,7 @@ fn main() -> Result<(), ParserError> {
     }
 
     let mut globals = Vec::new();
-    // stack pointer
-    globals.extend_from_slice(&0x8000u64.to_ne_bytes());
+    init_globals(&mut globals, &module);
 
     let started = std::time::Instant::now();
     let mut ctx = VmContext::new();

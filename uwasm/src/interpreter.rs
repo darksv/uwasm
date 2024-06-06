@@ -504,6 +504,45 @@ pub enum ExecutionError {
 
 pub type ImportedFunc<TContext> = fn(&mut TContext, &mut VmStack, &mut [u8]);
 
+pub fn init_globals(globals: &mut Vec<u8>, module: &WasmModule) {
+    for global in &module.globals {
+        // TODO: run full interpreter here
+        let mut reader = Reader::new(global.initializer.code);
+        loop {
+            let op = reader.read_u8().unwrap();
+            match op {
+                0x0b => {
+                    // end
+                    break;
+                }
+                0x41 => {
+                    // i32.const <literal>
+                    let val = reader.read_isize().unwrap();
+                    let val = i32::try_from(val).unwrap();
+                    globals.extend_from_slice(&val.to_ne_bytes());
+                }
+                0x42 => {
+                    // i64.const <literal>
+                    let val = reader.read_usize().unwrap();
+                    let val = i64::try_from(val).unwrap();
+                    globals.extend_from_slice(&val.to_ne_bytes());
+                }
+                0x43 => {
+                    // f32.const <literal>
+                    let val = reader.read_f32().unwrap();
+                    globals.extend_from_slice(&val.to_ne_bytes());
+                }
+                0x44 => {
+                    // f64.const <literal>
+                    let val = reader.read_f64().unwrap();
+                    globals.extend_from_slice(&val.to_ne_bytes());
+                }
+                _ => todo!("opcode {:02x?}", op),
+            }
+        }
+    }
+}
+
 pub fn execute_function<'code, TContext: Context, TArgs: FunctionArgs, TResult: Operand>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
