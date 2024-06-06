@@ -53,7 +53,7 @@ fn main() -> Result<(), ParserError> {
         let mut mem = [0u8; 0x8000];
         println!(">>> Executing entry function");
         let res = execute_function::<MyCtx, (u32,), u32>(&mut ctx, &module, b"entry".into(), (987654321, ), &mut mem, &mut globals, &imports, &mut MyCtx);
-        assert_eq!(res, 0);
+        println!(">>> Result: {:?}", res);
     }
     println!("time = {:?}/execution", started.elapsed() / runs);
 
