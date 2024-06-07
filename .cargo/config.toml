@@ -1,11 +1,10 @@
 [target.riscv32imc-unknown-none-elf]
 runner = "espflash flash --monitor"
+rustflags = [
+    "-C", "force-frame-pointers",
+    "-C", "link-arg=-Tlinkall.x",
+]
 
-#[build]
-#rustflags = [
-#    "-C", "force-frame-pointers",
-#    "-C", "link-arg=-Tlinkall.x",
-#]
-#
 #[unstable]
 #build-std = ["core", "alloc"]
+# cargo run --bin uwasm-uc -r -Z build-std=core,alloc --target riscv32imc-unknown-none-elf
