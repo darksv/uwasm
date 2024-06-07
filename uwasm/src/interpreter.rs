@@ -83,14 +83,18 @@ pub struct StackFrame<'code> {
 }
 
 impl<'code> StackFrame<'code> {
-    pub fn new(module: &'code WasmModule, idx: usize, locals_offset: usize) -> Self {
-        Self {
+    pub fn new(module: &'code WasmModule, idx: usize, locals_offset: usize) -> Result<Self, InterpreterError> {
+        let Some(func) = module.get_function_by_index(idx) else {
+            return Err(InterpreterError::FunctionNotFound);
+        };
+
+        Ok(Self {
             func_idx: idx,
-            reader: Reader::new(module.get_function_by_index(idx).unwrap().code),
+            reader: Reader::new(func.code),
             locals_offset,
             curr_loop_start: None,
             blocks: Vec::new(),
-        }
+        })
     }
 }
 
@@ -614,7 +618,7 @@ pub fn evaluate<'code, TContext: Context>(
         module,
         func_idx,
         0,
-    ));
+    )?);
 
     while let Some(frame) = ctx.call_stack.last_mut() {
         let current_func = module.get_function_by_index(frame.func_idx)
