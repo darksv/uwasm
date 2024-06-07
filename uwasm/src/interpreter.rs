@@ -659,7 +659,7 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x02 => {
                 // block
-                let _ty = reader.read_usize().unwrap();
+                let _ty = reader.read_usize()?;
                 frame.curr_loop_start = Some(pos);
                 frame.blocks.push(BlockMeta {
                     offset: pos,
@@ -669,7 +669,7 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x03 => {
                 // loop
-                let _ty = reader.read_usize().unwrap();
+                let _ty = reader.read_usize()?;
                 frame.curr_loop_start = Some(pos);
                 frame.blocks.push(BlockMeta {
                     offset: pos,
@@ -679,7 +679,7 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x04 => {
                 // if
-                let cond = match reader.read::<TypeKind>().unwrap() {
+                let cond = match reader.read::<TypeKind>()? {
                     TypeKind::Void => todo!(),
                     TypeKind::Func => todo!(),
                     TypeKind::FuncRef => todo!(),
@@ -723,7 +723,7 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x0c => {
                 // br
-                let depth = reader.read_usize().unwrap();
+                let depth = reader.read_usize()?;
                 let block_idx = frame.blocks.len() - 1 - depth;
                 let block = &frame.blocks[block_idx];
                 let target = match block.kind {
@@ -740,7 +740,7 @@ pub fn evaluate<'code, TContext: Context>(
             0x0d => {
                 // br_if
                 // TODO: dedup with br?
-                let depth = reader.read_usize().unwrap();
+                let depth = reader.read_usize()?;
                 let block_idx = frame.blocks.len() - 1 - depth;
                 let block = &frame.blocks[block_idx];
                 if ctx.stack.pop_i32().unwrap() != 0 {
@@ -765,7 +765,7 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x10 => {
                 // call <func_idx>
-                let func_idx = reader.read_usize().unwrap();
+                let func_idx = reader.read_usize()?;
                 #[cfg(debug_assertions)]
                 writeln!(x, "calling {}", func_idx);
 
@@ -803,26 +803,26 @@ pub fn evaluate<'code, TContext: Context>(
                     &ctx.locals[frame.locals_offset..]
                 );
 
-                let local_idx = reader.read_usize().unwrap();
+                let local_idx = reader.read_usize()?;
                 locals.push_into(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
             }
             0x21 => {
                 // local.set <local>
-                let local_idx = reader.read_usize().unwrap();
+                let local_idx = reader.read_usize()?;
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
                 ).pop_from(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
             }
             0x22 => {
                 // local.tee <local>
-                let local_idx = reader.read_usize().unwrap();
+                let local_idx = reader.read_usize()?;
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
                 ).copy_from(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
             }
             0x23 => {
                 // global.get <global>
-                let global_idx = reader.read_usize().unwrap();
+                let global_idx = reader.read_usize()?;
                 UntypedMemorySpan::from_slice(globals)
                     .push_into(
                         &mut ctx.stack,
@@ -833,7 +833,7 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x24 => {
                 // global.set <global>
-                let global_idx = reader.read_usize().unwrap();
+                let global_idx = reader.read_usize()?;
                 UntypedMemorySpan::from_slice_mut(globals)
                     .pop_from(
                         &mut ctx.stack,
@@ -857,8 +857,8 @@ pub fn evaluate<'code, TContext: Context>(
                 // i64.load16_u 0x33
                 // i64.load32_s 0x34
                 // i64.load32_u 0x35
-                let alignment = reader.read_usize().unwrap();
-                let fixed_offset = reader.read_usize().unwrap();
+                let alignment = reader.read_usize()?;
+                let fixed_offset = reader.read_usize()?;
                 let dyn_offset = ctx.stack.pop_i32().unwrap();
                 let offset = fixed_offset.checked_add_signed(dyn_offset as _).unwrap();
                 let mem = Memory::from_slice(memory);
@@ -893,8 +893,8 @@ pub fn evaluate<'code, TContext: Context>(
                 // i64.store16 	0x3d
                 // i64.store32 	0x3e
                 let mem = Memory::from_slice_mut(memory);
-                let alignment = reader.read_usize().unwrap();
-                let fixed_offset = reader.read_usize().unwrap();
+                let alignment = reader.read_usize()?;
+                let fixed_offset = reader.read_usize()?;
 
                 match op {
                     0x36 => {
@@ -943,22 +943,22 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x41 => {
                 // i32.const <literal>
-                let val = reader.read_isize().unwrap();
+                let val = reader.read_isize()?;
                 ctx.stack.push_i32(i32::try_from(val).unwrap());
             }
             0x42 => {
                 // i64.const <literal>
-                let val = reader.read_usize().unwrap();
+                let val = reader.read_usize()?;
                 ctx.stack.push_i64(i64::try_from(val).unwrap());
             }
             0x43 => {
                 // f32.const <literal>
-                let val = reader.read_f32().unwrap();
+                let val = reader.read_f32()?;
                 ctx.stack.push_f32(val);
             }
             0x44 => {
                 // f64.const <literal>
-                let val = reader.read_f64().unwrap();
+                let val = reader.read_f64()?;
                 ctx.stack.push_f64(val);
             }
             0x45 => {
