@@ -317,27 +317,29 @@ impl UntypedMemorySpan {
     }
 
     #[inline]
-    fn pop_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) {
+    fn pop_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) -> Result<(), InterpreterError> {
         match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_f32().unwrap().to_ne_bytes()).expect("invalid var_index"),
-            TypeKind::F64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_f64().unwrap().to_ne_bytes()).expect("invalid var_index"),
-            TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_i32().unwrap().to_ne_bytes()).expect("invalid var_index"),
-            TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_i64().unwrap().to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::F32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_f32()?.to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::F64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_f64()?.to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_i32()?.to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_i64()?.to_ne_bytes()).expect("invalid var_index"),
         }
+        Ok(())
     }
 
     #[inline]
-    fn copy_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) {
+    fn copy_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) -> Result<(), InterpreterError> {
         match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 | TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.peek_bytes().unwrap()).unwrap(),
-            TypeKind::F64 | TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.peek_bytes().unwrap()).unwrap(),
+            TypeKind::F32 | TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.peek_bytes()?).unwrap(),
+            TypeKind::F64 | TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.peek_bytes()?).unwrap(),
         }
+        Ok(())
     }
 }
 
@@ -743,7 +745,7 @@ pub fn evaluate<'code, TContext: Context>(
                 let depth = reader.read_usize()?;
                 let block_idx = frame.blocks.len() - 1 - depth;
                 let block = &frame.blocks[block_idx];
-                if ctx.stack.pop_i32().unwrap() != 0 {
+                if ctx.stack.pop_i32()? != 0 {
                     let target = match block.kind {
                         BlockType::Block => current_func.jump_targets[&block.offset] - 1,
                         BlockType::Loop => block.body_offset
@@ -788,9 +790,9 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x1b => {
                 // select
-                let cond = ctx.stack.pop_i32().unwrap();
-                let a = ctx.stack.pop_i32().unwrap();
-                let b = ctx.stack.pop_i32().unwrap();
+                let cond = ctx.stack.pop_i32()?;
+                let a = ctx.stack.pop_i32()?;
+                let b = ctx.stack.pop_i32()?;
                 let res = match cond {
                     0 => a,
                     _ => b,
@@ -811,14 +813,24 @@ pub fn evaluate<'code, TContext: Context>(
                 let local_idx = reader.read_usize()?;
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
-                ).pop_from(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
+                ).pop_from(
+                    &mut ctx.stack,
+                    local_idx,
+                    current_func.locals_types[local_idx],
+                    &current_func.locals_offsets,
+                )?;
             }
             0x22 => {
                 // local.tee <local>
                 let local_idx = reader.read_usize()?;
                 UntypedMemorySpan::from_slice_mut(
                     &mut ctx.locals[frame.locals_offset..]
-                ).copy_from(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
+                ).copy_from(
+                    &mut ctx.stack,
+                    local_idx,
+                    current_func.locals_types[local_idx],
+                    &current_func.locals_offsets,
+                )?;
             }
             0x23 => {
                 // global.get <global>
@@ -840,7 +852,7 @@ pub fn evaluate<'code, TContext: Context>(
                         global_idx,
                         module.globals[global_idx].kind,
                         &module.globals_offsets,
-                    );
+                    )?;
             }
             0x28..=0x35 => {
                 // i32.load     0x28
@@ -859,7 +871,7 @@ pub fn evaluate<'code, TContext: Context>(
                 // i64.load32_u 0x35
                 let alignment = reader.read_usize()?;
                 let fixed_offset = reader.read_usize()?;
-                let dyn_offset = ctx.stack.pop_i32().unwrap();
+                let dyn_offset = ctx.stack.pop_i32()?;
                 let offset = fixed_offset.checked_add_signed(dyn_offset as _).unwrap();
                 let mem = Memory::from_slice(memory);
                 #[cfg(debug_assertions)]
@@ -899,8 +911,8 @@ pub fn evaluate<'code, TContext: Context>(
                 match op {
                     0x36 => {
                         // i32.store
-                        let val = ctx.stack.pop_i32().unwrap();
-                        let dyn_offset = ctx.stack.pop_i32().unwrap() as isize;
+                        let val = ctx.stack.pop_i32()?;
+                        let dyn_offset = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
                         writeln!(x, "i32.store: mem[{fixed_offset}{dyn_offset:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(dyn_offset).unwrap();
@@ -908,8 +920,8 @@ pub fn evaluate<'code, TContext: Context>(
                     }
                     0x37 => {
                         // i64.store
-                        let val = ctx.stack.pop_i64().unwrap();
-                        let idx = ctx.stack.pop_i32().unwrap() as isize;
+                        let val = ctx.stack.pop_i64()?;
+                        let idx = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
                         writeln!(x, "i64.store: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
@@ -919,8 +931,8 @@ pub fn evaluate<'code, TContext: Context>(
                     0x39 => todo!(), // f64.store
                     0x3a => {
                         // i32.store8
-                        let val = ctx.stack.pop_i32().unwrap() as i8;
-                        let idx = ctx.stack.pop_i32().unwrap() as isize;
+                        let val = ctx.stack.pop_i32()? as i8;
+                        let idx = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
                         writeln!(x, "i32.store8: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
@@ -928,8 +940,8 @@ pub fn evaluate<'code, TContext: Context>(
                     }
                     0x3b => {
                         // i32.store16
-                        let val = ctx.stack.pop_i32().unwrap() as i16;
-                        let idx = ctx.stack.pop_i32().unwrap() as isize;
+                        let val = ctx.stack.pop_i32()? as i16;
+                        let idx = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
                         writeln!(x, "i32.store16: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
@@ -963,139 +975,139 @@ pub fn evaluate<'code, TContext: Context>(
             }
             0x45 => {
                 // i32.eqz
-                ctx.stack.inplace_unary_op(|a: i32| a == 0).unwrap();
+                ctx.stack.inplace_unary_op(|a: i32| a == 0)?;
             }
             0x46 => {
                 // i32.eq
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a == b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a == b)?;
             }
             0x47 => {
                 // i32.ne
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a != b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a != b)?;
             }
             0x48 => {
                 // i32.lt_s
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a < b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a < b)?;
             }
             0x49 => {
                 // i32.lt_u
-                ctx.stack.inplace_bin_op(|a: u32, b: u32| a < b).unwrap();
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a < b)?;
             }
             0x4a => {
                 // i32.le_s
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a <= b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a <= b)?;
             }
             0x4b => {
                 // i32.gt_s
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a > b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a > b)?;
             }
             0x4c => {
                 // i32.gt_u
-                ctx.stack.inplace_bin_op(|a: u32, b: u32| a > b).unwrap();
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a > b)?;
             }
             0x4d => {
                 // i32.le_u
-                ctx.stack.inplace_bin_op(|a: u32, b: u32| a <= b).unwrap();
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a <= b)?;
             }
             0x4e => {
                 // i32.ge_s
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a >= b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a >= b)?;
             }
             0x4f => {
                 // i32.ge_u
-                ctx.stack.inplace_bin_op(|a: u32, b: u32| a >= b).unwrap();
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a >= b)?;
             }
             0x63 => {
                 // f64.lt
-                ctx.stack.inplace_bin_op(|a: f64, b: f64| (a < b) as i32 as f64).unwrap();
+                ctx.stack.inplace_bin_op(|a: f64, b: f64| (a < b) as i32 as f64)?;
             }
             0x6a => {
                 // i32.add
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a + b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a + b)?;
             }
             0x6b => {
                 // i32.sub
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a - b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a - b)?;
             }
             0x6c => {
                 // i32.mul
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a.wrapping_mul(b)).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a.wrapping_mul(b))?;
             }
             0x6d => {
                 // i32.div_s
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a / b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a / b)?;
             }
             0x6e => {
                 // i32.div_u
-                ctx.stack.inplace_bin_op(|a: u32, b: u32| a / b).unwrap();
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a / b)?;
             }
             0x70 => {
                 // i32.rem_u
-                ctx.stack.inplace_bin_op(|a: u32, b: u32| a % b).unwrap();
+                ctx.stack.inplace_bin_op(|a: u32, b: u32| a % b)?;
             }
             0x71 => {
                 // i32.and
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a & b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a & b)?;
             }
             0x72 => {
                 // i32.or
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a | b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a | b)?;
             }
             0x73 => {
                 // i32.xor
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a ^ b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a ^ b)?;
             }
             0x74 => {
                 // i32.shl
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a << b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a << b)?;
             }
             0x76 => {
                 // i32.shr_u
-                ctx.stack.inplace_bin_op(|a: i32, b: i32| a >> b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i32, b: i32| a >> b)?;
             }
             0x7e => {
                 // i64.mul
-                ctx.stack.inplace_bin_op(|a: i64, b: i64| a * b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a * b)?;
             }
             0x84 => {
                 // i64.or
-                ctx.stack.inplace_bin_op(|a: i64, b: i64| a | b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a | b)?;
             }
             0x86 => {
                 // i64.shl
-                ctx.stack.inplace_bin_op(|a: i64, b: i64| a << b).unwrap();
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a << b)?;
             }
             0x88 => {
                 // i64.shr_u
-                ctx.stack.inplace_bin_op(|a: u64, b: u64| a >> b).unwrap();
+                ctx.stack.inplace_bin_op(|a: u64, b: u64| a >> b)?;
             }
             0x92 => {
                 // f32.add
-                ctx.stack.inplace_bin_op(|a: f32, b: f32| a + b).unwrap();
+                ctx.stack.inplace_bin_op(|a: f32, b: f32| a + b)?;
             }
             0xa1 => {
                 // f64.sub
-                ctx.stack.inplace_bin_op(|a: f64, b: f64| a - b).unwrap();
+                ctx.stack.inplace_bin_op(|a: f64, b: f64| a - b)?;
             }
             0xa2 => {
                 // f64.mul
-                ctx.stack.inplace_bin_op(|a: f64, b: f64| a * b).unwrap();
+                ctx.stack.inplace_bin_op(|a: f64, b: f64| a * b)?;
             }
             0xa7 => {
                 // i32.wrap_i64
-                ctx.stack.inplace_unary_op(|a: i64| i32::try_from(a & 0xffffffff).unwrap()).unwrap();
+                ctx.stack.inplace_unary_op(|a: i64| i32::try_from(a & 0xffffffff).unwrap())?;
             }
             0xad => {
                 // i64.extend_i32_u
-                ctx.stack.inplace_unary_op(|a: i32| i64::from(a)).unwrap();
+                ctx.stack.inplace_unary_op(|a: i32| i64::from(a))?;
             }
             0xbe => {
                 // f32.reinterpret_i32
-                ctx.stack.inplace_unary_op(|a: i32| f32::from_ne_bytes(a.to_ne_bytes())).unwrap();
+                ctx.stack.inplace_unary_op(|a: i32| f32::from_ne_bytes(a.to_ne_bytes()))?;
             }
             0xc0 => {
                 // i32.extend8_s
-                ctx.stack.inplace_unary_op(|a: i32| a).unwrap();
+                ctx.stack.inplace_unary_op(|a: i32| a)?;
             }
             _ => todo!("opcode {:02x?}", op),
         }
