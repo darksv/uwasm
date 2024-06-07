@@ -16,17 +16,17 @@ use esp_hal::{
 use esp_hal::gpio::{AnyOutput, GpioPin, Output};
 use esp_hal::system::SystemControl;
 use esp_hal::timer::systimer::SystemTimer;
-use uwasm::{Context, parse, VmContext, execute_function, ImportedFunc};
+use uwasm::{Environment, parse, VmContext, execute_function, ImportedFunc};
 
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
-struct MyCtx<'io> {
+struct MyEnv<'io> {
     led: AnyOutput<'io>,
     delay: Delay,
 }
 
-impl Context for MyCtx<'_> {
+impl Environment for MyEnv<'_> {
     fn write_fmt(&mut self, args: Arguments) {
         _ = esp_println::Printer.write_fmt(args);
     }
@@ -46,30 +46,30 @@ fn main() -> ! {
 
     init_heap();
 
-    let mut ctx = MyCtx {
+    let mut env = MyEnv {
         led: AnyOutput::new(io.pins.gpio18, Level::High),
         delay: Delay::new(&clocks),
     };
 
-    let module = parse(include_bytes!("../../hello_led.wasm"), &mut ctx).expect("parse module");
-    let mut imports: Vec<ImportedFunc<MyCtx>> = Vec::new();
+    let module = parse(include_bytes!("../../hello_led.wasm"), &mut env).expect("parse module");
+    let mut imports: Vec<ImportedFunc<MyEnv>> = Vec::new();
 
     let delay = Delay::new(&clocks);
 
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
-            b"sleep_ms" => |ctx, stack, memory| {
+            b"sleep_ms" => |env, stack, memory| {
                 let sleep = stack.pop_u32().unwrap();
-                ctx.delay.delay_millis(sleep);
+                env.delay.delay_millis(sleep);
                 println!(">>> sleeping for {sleep} ms");
             },
-            b"set_output" => |ctx, stack, memory| {
+            b"set_output" => |env, stack, memory| {
                 let state = stack.pop_u32().unwrap();
                 let pin = stack.pop_u32().unwrap();
 
                 match state {
-                    0 => ctx.led.set_low(),
-                    1 => ctx.led.set_high(),
+                    0 => env.led.set_low(),
+                    1 => env.led.set_high(),
                     _ => unimplemented!(),
                 }
                 println!(">>> setting pin {pin} to {state}")
@@ -87,7 +87,7 @@ fn main() -> ! {
     loop {
         let start = SystemTimer::now();
         for i in 0..100 {
-            let _ = execute_function::<MyCtx, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut ctx);
+            let _ = execute_function::<MyEnv, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut env);
         }
         let elapsed = SystemTimer::now() - start;
         println!("ticks: {elapsed}");

@@ -44,7 +44,7 @@ impl Item for FuncSignature {
     }
 }
 
-pub trait Context {
+pub trait Environment {
     fn write_fmt(&mut self, args: fmt::Arguments);
     fn ticks(&self) -> u64;
 }
@@ -97,8 +97,8 @@ impl fmt::Debug for FuncBody<'_> {
             .debug_struct("FuncBody")
             .field("signature", &self.signature)
             .field_with("code", |f| {
-                struct Wrapper<'a, 'b>(&'a mut fmt::Formatter<'b>);
-                impl Context for Wrapper<'_, '_> {
+                struct DummyEnv<'a, 'b>(&'a mut fmt::Formatter<'b>);
+                impl Environment for DummyEnv<'_, '_> {
                     fn write_fmt(&mut self, args: fmt::Arguments) {
                         self.0.write_fmt(args).unwrap();
                     }
@@ -109,7 +109,7 @@ impl fmt::Debug for FuncBody<'_> {
                 }
 
                 let mut reader = Reader::new(self.code);
-                _ = parse_code(&mut reader, &mut Wrapper(f));
+                _ = parse_code(&mut reader, &mut DummyEnv(f));
                 Ok(())
             })
             .field("locals_types", &self.locals_types)
@@ -152,7 +152,7 @@ fn offsets_of_types(types: impl ExactSizeIterator<Item=TypeKind>) -> Vec<usize> 
 #[allow(unused)]
 pub fn parse<'code>(
     code: &'code [u8],
-    ctx: &mut impl Context,
+    env: &mut impl Environment,
 ) -> Result<WasmModule<'code>, ParserError> {
     let mut reader = Reader::new(code);
     reader.expect_bytes(b"\x00asm")?;
@@ -162,13 +162,13 @@ pub fn parse<'code>(
     let mut imports = 0;
     let mut globals = Vec::new();
 
-    writeln!(ctx, "Version: {:?}", reader.read_u32()?);
+    writeln!(env, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
         let _section_size = reader.read_usize()?;
         match section_type {
             SectionKind::Custom => {
                 let name = reader.read_str()?;
-                writeln!(ctx, "Found custom section: {}", name);
+                writeln!(env, "Found custom section: {}", name);
 
                 break; // FIXME
 
@@ -185,7 +185,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Type => {
-                writeln!(ctx, "Found type section");
+                writeln!(env, "Found type section");
 
                 let num_types = reader.read_usize()?;
                 for _ in 0..num_types {
@@ -193,7 +193,7 @@ pub fn parse<'code>(
                     match kind {
                         TypeKind::Func => {
                             let sig = reader.read::<FuncSignature>()?;
-                            writeln!(ctx, "Signature: {:?}", sig);
+                            writeln!(env, "Signature: {:?}", sig);
                             signatures.push(sig);
                         }
                         other => todo!("{:?}", other),
@@ -201,16 +201,16 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Import => {
-                writeln!(ctx, "Found import section");
+                writeln!(env, "Found import section");
                 let num_imports = reader.read_usize()?;
-                writeln!(ctx, "{num_imports}");
+                writeln!(env, "{num_imports}");
                 for _ in 0..num_imports {
                     let module_name = reader.read_str()?;
                     let field_name = reader.read_str()?;
                     let import_kind = reader.read_u8()?;
                     let import_sig_idx = reader.read_usize()?;
                     writeln!(
-                        ctx,
+                        env,
                         "Found imported: {module_name}.{field_name} | signature index: {import_sig_idx} | kind: {import_kind}"
                     );
                     if import_kind == 0 {
@@ -225,13 +225,13 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Function => {
-                writeln!(ctx, "Found function section");
+                writeln!(env, "Found function section");
 
                 let num_funcs = reader.read_usize()?;
-                writeln!(ctx, "{:?}", num_funcs);
+                writeln!(env, "{:?}", num_funcs);
                 for func_idx in 0..num_funcs {
                     let sig_index = reader.read_usize()?;
-                    writeln!(ctx, "Function #{func_idx} | signature #{sig_index}: {:?}", &signatures[sig_index]);
+                    writeln!(env, "Function #{func_idx} | signature #{sig_index}: {:?}", &signatures[sig_index]);
                     functions.push(Func {
                         body: None,
                         name: None,
@@ -240,7 +240,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Table => {
-                writeln!(ctx, "Found table section");
+                writeln!(env, "Found table section");
 
                 let num_tables = reader.read_usize()?;
                 for _ in 0..num_tables {
@@ -251,7 +251,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Memory => {
-                writeln!(ctx, "Found memory section");
+                writeln!(env, "Found memory section");
                 let num_memories = reader.read_usize()?;
                 for _ in 0..num_memories {
                     let limits_flags = reader.read_u8()?;
@@ -259,13 +259,13 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Global => {
-                writeln!(ctx, "Found global section");
+                writeln!(env, "Found global section");
                 let num_globals = reader.read_usize()?;
                 for i in 0..num_globals {
                     let kind = reader.read::<TypeKind>()?;
                     let global_mut = reader.read_u8()?;
-                    writeln!(ctx, "global #{i}: {:?} mut={}", kind, global_mut);
-                    let code = parse_code(&mut reader, ctx)?;
+                    writeln!(env, "global #{i}: {:?} mut={}", kind, global_mut);
+                    let code = parse_code(&mut reader, env)?;
 
                     globals.push(Global {
                         kind,
@@ -275,15 +275,15 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Export => {
-                writeln!(ctx, "Found export section");
+                writeln!(env, "Found export section");
                 let num_exports = reader.read_usize()?;
-                writeln!(ctx, "{num_exports}");
+                writeln!(env, "{num_exports}");
                 for _ in 0..num_exports {
                     let name = reader.read_str()?;
                     let export_kind = reader.read_u8()?;
                     let export_func_idx = reader.read_usize()?;
                     writeln!(
-                        ctx,
+                        env,
                         "Found exported: {name} | index: {export_func_idx} | kind: {export_kind}"
                     );
                     if export_kind == 0 {
@@ -293,7 +293,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Elem => {
-                writeln!(ctx, "Found elem section");
+                writeln!(env, "Found elem section");
                 let num_elem_segments = reader.read_usize()?;
                 for _ in 0..num_elem_segments {
                     let segment_flags = reader.read_u8()?;
@@ -319,7 +319,7 @@ pub fn parse<'code>(
                 }
             }
             SectionKind::Code => {
-                writeln!(ctx, "Found code section");
+                writeln!(env, "Found code section");
 
                 let num_funcs = reader.read_usize()?;
                 for func_idx in 0..num_funcs {
@@ -342,9 +342,9 @@ pub fn parse<'code>(
                     }
 
                     let offsets = offsets_of_types(locals_types.iter().copied());
-                    writeln!(ctx, "offsets={:?}", offsets);
+                    writeln!(env, "offsets={:?}", offsets);
 
-                    let CodeInfo { offset, code, jump_targets } = parse_code(&mut reader, ctx)?;
+                    let CodeInfo { offset, code, jump_targets } = parse_code(&mut reader, env)?;
                     let params_len_in_bytes = signature
                         .params
                         .iter()
@@ -379,12 +379,12 @@ struct CodeInfo<'code> {
     jump_targets: BTreeMap<usize, usize>,
 }
 
-fn parse_code<'c>(reader: &mut Reader<'c>, ctx: &mut impl Context) -> Result<CodeInfo<'c>, ParserError> {
+fn parse_code<'c>(reader: &mut Reader<'c>, env: &mut impl Environment) -> Result<CodeInfo<'c>, ParserError> {
     let marker = reader.marker();
     let mut state = ParserState::default();
 
     loop {
-        match parse_opcode::<false>(reader, marker.pos(), ctx, &mut state)? {
+        match parse_opcode::<false>(reader, marker.pos(), env, &mut state)? {
             ControlFlow::Continue(_) => continue,
             ControlFlow::Break(_) => break,
         }
@@ -416,29 +416,34 @@ struct ParserState {
     jump_targets: BTreeMap<usize, usize>,
 }
 
-fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize, ctx: &mut impl Context, state: &mut ParserState) -> Result<ControlFlow<(), ()>, ParserError> {
+fn parse_opcode<const ONLY_PRINT: bool>(
+    reader: &mut Reader,
+    func_offset: usize,
+    env: &mut impl Environment,
+    state: &mut ParserState
+) -> Result<ControlFlow<(), ()>, ParserError> {
     let pos = reader.pos();
     let op = reader.read_u8()?;
     match op {
         0x00 => {
             // unreachable
-            writeln!(ctx, "unreachable");
+            writeln!(env, "unreachable");
         }
         0x01 => {
             // nop
-            writeln!(ctx, "nop");
+            writeln!(env, "nop");
         }
         0x02 => {
             // block
             let block_type = reader.read_u8()?;
-            writeln!(ctx, "block {:02x}", block_type);
+            writeln!(env, "block {:02x}", block_type);
             if !ONLY_PRINT {
                 state.blocks.push(BlockMeta { kind: BlockType::Block, offset: pos });
             }
         }
         0x03 => {
             // loop
-            writeln!(ctx, "loop");
+            writeln!(env, "loop");
             let _loop_type = reader.read_u8()?;
             if !ONLY_PRINT {
                 state.blocks.push(BlockMeta { kind: BlockType::Loop, offset: pos });
@@ -446,7 +451,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
         }
         0x04 => {
             // if
-            writeln!(ctx, "if");
+            writeln!(env, "if");
             let _ty = reader.read::<TypeKind>()?;
             if !ONLY_PRINT {
                 state.blocks.push(BlockMeta { kind: BlockType::If, offset: pos });
@@ -454,7 +459,7 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
         }
         0x05 => {
             // else
-            writeln!(ctx, "else");
+            writeln!(env, "else");
             if !ONLY_PRINT {
                 let BlockMeta { kind, offset } = state.blocks.pop().unwrap();
                 assert_eq!(kind, BlockType::If);
@@ -465,88 +470,88 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
         0x0b => {
             // end
             if !ONLY_PRINT {
-                write!(ctx, "end");
+                write!(env, "end");
                 if let Some(BlockMeta { kind, offset: start_offset }) = state.blocks.pop() {
-                    writeln!(ctx, " // {:?} @ {:02X}", kind, pos);
+                    writeln!(env, " // {:?} @ {:02X}", kind, pos);
                     state.jump_targets.insert(start_offset, pos + 1 - func_offset);
                 } else {
                     // end of function
-                    writeln!(ctx, " // code");
+                    writeln!(env, " // code");
                     return Ok(ControlFlow::Break(()));
                 }
             } else {
-                writeln!(ctx, "end");
+                writeln!(env, "end");
             }
         }
         0x0c => {
             // br
             let break_depth = reader.read_usize()?;
-            writeln!(ctx, "br {}", break_depth);
+            writeln!(env, "br {}", break_depth);
         }
         0x0d => {
             // br_if
             let break_depth = reader.read_usize()?;
-            writeln!(ctx, "br_if {}", break_depth);
+            writeln!(env, "br_if {}", break_depth);
         }
         0x0e => {
             // br_table
             // FIXME
             let n = reader.read_usize()?;
-            write!(ctx, "br_table");
+            write!(env, "br_table");
             for _ in 0..n {
                 let n = reader.read_usize()?;
-                write!(ctx, " {}", n);
+                write!(env, " {}", n);
             }
             let else_c = reader.read_usize()?;
-            writeln!(ctx, " {} ", else_c);
+            writeln!(env, " {} ", else_c);
         }
         0x0f => {
             // return
-            writeln!(ctx, "return");
+            writeln!(env, "return");
         }
         0x10 => {
             // call <func_idx>
             let func_idx = reader.read_usize()?;
-            writeln!(ctx, "call {}", func_idx);
+            writeln!(env, "call {}", func_idx);
         }
         0x11 => {
             // call_indirect <func_idx>
             let sig_idx = reader.read_usize()?;
             let table_idx = reader.read_usize()?;
-            writeln!(ctx, "call_indirect {} {}", sig_idx, table_idx);
+            writeln!(env, "call_indirect {} {}", sig_idx, table_idx);
         }
         0x1a => {
             // drop
-            writeln!(ctx, "drop");
+            writeln!(env, "drop");
         }
         0x1b => {
             // select
-            writeln!(ctx, "select");
+            writeln!(env, "select");
         }
         0x20 => {
             // local.get <local>
             let local_idx = reader.read_usize()?;
-            writeln!(ctx, "local.get {}", local_idx);
+            writeln!(env, "local.get {}", local_idx);
         }
         0x21 => {
             // local.set <local>
             let local_idx = reader.read_usize()?;
-            writeln!(ctx, "local.set {}", local_idx);
+            writeln!(env, "local.set {}", local_idx);
         }
         0x22 => {
             // local.tee <local>
             let local_idx = reader.read_usize()?;
-            writeln!(ctx, "local.tee {}", local_idx);
+            writeln!(env, "local.tee {}", local_idx);
         }
         0x23 => {
             // global.get <global>
             let global_idx = reader.read_usize()?;
-            writeln!(ctx, "global.get {}", global_idx);
+            writeln!(env, "global.get {}", global_idx);
         }
         0x24 => {
             // global.set <global>
             let global_idx = reader.read_usize()?;
-            writeln!(ctx, "global.set {}", global_idx);
+            writeln!(env, "global.set {}", global_idx);
         }
         0x28..=0x35 => {
             // i32.load     0x28
@@ -582,283 +587,283 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
                 0x35 => "i64.load32_u",
                 _ => unreachable!(),
             };
-            writeln!(ctx, "{name} align={align} offset={offset}");
+            writeln!(env, "{name} align={align} offset={offset}");
         }
         0x36 => {
             // i32.store
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i32.store align={align} offset={offset}");
+            writeln!(env, "i32.store align={align} offset={offset}");
         }
         0x37 => {
             // i64.store
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i64.store align={align} offset={offset}");
+            writeln!(env, "i64.store align={align} offset={offset}");
         }
         0x39 => {
             // f64.store
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "f64.store align={align} offset={offset}");
+            writeln!(env, "f64.store align={align} offset={offset}");
         }
         0x3a => {
             // i32.store8
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i32.store8 align={align} offset={offset}");
+            writeln!(env, "i32.store8 align={align} offset={offset}");
         }
         0x3b => {
             // i32.store16
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i32.store16 align={align} offset={offset}");
+            writeln!(env, "i32.store16 align={align} offset={offset}");
         }
         0x3d => {
             // i64.store16
             let align = reader.read_usize()?;
             let offset = reader.read_usize()?;
-            writeln!(ctx, "i64.store16 align={align} offset={offset}");
+            writeln!(env, "i64.store16 align={align} offset={offset}");
         }
         0x40 => {
             // memory.grow
             let mem_idx = reader.read_usize()?;
-            writeln!(ctx, "memory.grow {}", mem_idx);
+            writeln!(env, "memory.grow {}", mem_idx);
         }
         0x41 => {
             // i32.const <literal>
             let val = reader.read_signed()?;
-            writeln!(ctx, "i32.const {}", val);
+            writeln!(env, "i32.const {}", val);
         }
         0x42 => {
             // i64.const <literal>
             let val = reader.read_signed()?;
-            writeln!(ctx, "i64.const {}", val);
+            writeln!(env, "i64.const {}", val);
         }
         0x43 => {
             // f32.const <literal>
             let val = reader.read_f32()?;
-            writeln!(ctx, "f32.const {}", val);
+            writeln!(env, "f32.const {}", val);
         }
         0x44 => {
             // f64.const <literal>
             let val = reader.read_f64()?;
-            writeln!(ctx, "f64.const {}", val);
+            writeln!(env, "f64.const {}", val);
         }
         0x45 => {
             // i32.eqz
-            writeln!(ctx, "i32.eqz");
+            writeln!(env, "i32.eqz");
         }
         0x46 => {
             // i32.eq
-            writeln!(ctx, "i32.eq");
+            writeln!(env, "i32.eq");
         }
         0x47 => {
             // i32.ne
-            writeln!(ctx, "i32.ne");
+            writeln!(env, "i32.ne");
         }
         0x48 => {
             // i32.lt_s
-            writeln!(ctx, "i32.lt_s");
+            writeln!(env, "i32.lt_s");
         }
         0x49 => {
             // i32.lt_u
-            writeln!(ctx, "i32.lt_u");
+            writeln!(env, "i32.lt_u");
         }
         0x4a => {
             // i32.le_s
-            writeln!(ctx, "i32.le_s");
+            writeln!(env, "i32.le_s");
         }
         0x4b => {
             // i32.gt_s
-            writeln!(ctx, "i32.gt_s");
+            writeln!(env, "i32.gt_s");
         }
         0x4c => {
             // i32.gt_u
-            writeln!(ctx, "i32.gt_u");
+            writeln!(env, "i32.gt_u");
         }
         0x4d => {
             // i32.le_u
-            writeln!(ctx, "i32.le_u");
+            writeln!(env, "i32.le_u");
         }
         0x4e => {
             // i32.ge_s
-            writeln!(ctx, "i32.ge_s");
+            writeln!(env, "i32.ge_s");
         }
         0x4f => {
             // i32.ge_u
-            writeln!(ctx, "i32.ge_u");
+            writeln!(env, "i32.ge_u");
         }
         0x56 => {
             // i64.gt_u
-            writeln!(ctx, "i64.gt_u");
+            writeln!(env, "i64.gt_u");
         }
         0x5a => {
             // i64.ge_u
-            writeln!(ctx, "i64.ge_u");
+            writeln!(env, "i64.ge_u");
         }
         0x5c => {
             // f32.ne
-            writeln!(ctx, "f32.ne");
+            writeln!(env, "f32.ne");
         }
         0x63 => {
             // f64.lt
-            writeln!(ctx, "f64.lt");
+            writeln!(env, "f64.lt");
         }
         0x65 => {
             // f64.le
-            writeln!(ctx, "f64.le");
+            writeln!(env, "f64.le");
         }
         0x67 => {
             // i32.clz
-            writeln!(ctx, "i32.clz");
+            writeln!(env, "i32.clz");
         }
         0x68 => {
             // i32.ctz
-            writeln!(ctx, "i32.ctz");
+            writeln!(env, "i32.ctz");
         }
         0x69 => {
             // i32.popcnt
-            writeln!(ctx, "i32.popcnt");
+            writeln!(env, "i32.popcnt");
         }
         0x6a => {
             // i32.add
-            writeln!(ctx, "i32.add");
+            writeln!(env, "i32.add");
         }
         0x6b => {
             // i32.sub
-            writeln!(ctx, "i32.sub");
+            writeln!(env, "i32.sub");
         }
         0x6c => {
             // i32.mul
-            writeln!(ctx, "i32.mul");
+            writeln!(env, "i32.mul");
         }
         0x6d => {
             // i32.div_s
-            writeln!(ctx, "i32.div_s");
+            writeln!(env, "i32.div_s");
         }
         0x6e => {
             // i32.div_u
-            writeln!(ctx, "i32.div_u");
+            writeln!(env, "i32.div_u");
         }
         0x6f => {
             // i32.rem_s
-            writeln!(ctx, "i32.rem_s");
+            writeln!(env, "i32.rem_s");
         }
         0x70 => {
             // i32.rem_u
-            writeln!(ctx, "i32.rem_u");
+            writeln!(env, "i32.rem_u");
         }
         0x71 => {
             // i32.and
-            writeln!(ctx, "i32.and");
+            writeln!(env, "i32.and");
         }
         0x72 => {
             // i32.or
-            writeln!(ctx, "i32.or");
+            writeln!(env, "i32.or");
         }
         0x73 => {
             // i32.xor
-            writeln!(ctx, "i32.xor");
+            writeln!(env, "i32.xor");
         }
         0x74 => {
             // i32.shl
-            writeln!(ctx, "i32.shl");
+            writeln!(env, "i32.shl");
         }
         0x75 => {
             // i32.shr_s
-            writeln!(ctx, "i32.shr_s");
+            writeln!(env, "i32.shr_s");
         }
         0x76 => {
             // i32.shr_u
-            writeln!(ctx, "i32.shr_u");
+            writeln!(env, "i32.shr_u");
         }
         0x77 => {
             // i32.rotl
-            writeln!(ctx, "i32.rotl");
+            writeln!(env, "i32.rotl");
         }
         0x78 => {
             // i32.rotr
-            writeln!(ctx, "i32.rotr");
+            writeln!(env, "i32.rotr");
         }
         0x7a => {
             // i64.ctz
-            writeln!(ctx, "i64.ctz");
+            writeln!(env, "i64.ctz");
         }
         0x7c => {
             // i64.add
-            writeln!(ctx, "i64.add");
+            writeln!(env, "i64.add");
         }
         0x7d => {
             // i64.sub
-            writeln!(ctx, "i64.sub");
+            writeln!(env, "i64.sub");
         }
         0x7e => {
             // i64.mul
-            writeln!(ctx, "i64.mul");
+            writeln!(env, "i64.mul");
         }
         0x80 => {
             // i64.div_u
-            writeln!(ctx, "i64.div_u");
+            writeln!(env, "i64.div_u");
         }
         0x84 => {
             // i64.or
-            writeln!(ctx, "i64.or");
+            writeln!(env, "i64.or");
         }
         0x86 => {
             // i64.shl
-            writeln!(ctx, "i64.shl");
+            writeln!(env, "i64.shl");
         }
         0x88 => {
             // i64.shr_u
-            writeln!(ctx, "i64.shr_u");
+            writeln!(env, "i64.shr_u");
         }
         0x8c => {
             // f32.neg
-            writeln!(ctx, "f32.neg");
+            writeln!(env, "f32.neg");
         }
         0x92 => {
             // f32.add
-            writeln!(ctx, "f32.add");
+            writeln!(env, "f32.add");
         }
         0x9a => {
             // f64.neg
-            writeln!(ctx, "f64.neg");
+            writeln!(env, "f64.neg");
         }
         0xa0 => {
             // f64.add
-            writeln!(ctx, "f64.add");
+            writeln!(env, "f64.add");
         }
         0xa1 => {
             // f64.sub
-            writeln!(ctx, "f64.sub");
+            writeln!(env, "f64.sub");
         }
         0xa2 => {
             // f64.mul
-            writeln!(ctx, "f64.mul");
+            writeln!(env, "f64.mul");
         }
         0xa7 => {
             // i32.wrap_i64
-            writeln!(ctx, "i32.wrap_i64");
+            writeln!(env, "i32.wrap_i64");
         }
         0xad => {
             // i64.extend_i32_u
-            writeln!(ctx, "i64.extend_i32_u");
+            writeln!(env, "i64.extend_i32_u");
         }
         0xbe => {
             // f32.reinterpret_i32
-            writeln!(ctx, "f32.reinterpret_i32");
+            writeln!(env, "f32.reinterpret_i32");
         }
         0xc0 => {
             // i32.extend8_s
-            writeln!(ctx, "i32.extend8_s");
+            writeln!(env, "i32.extend8_s");
         }
         0xc1 => {
             // i32.extend16_s
-            writeln!(ctx, "i32.extend16_s");
+            writeln!(env, "i32.extend16_s");
         }
         _ => {
-            writeln!(ctx, "opcode {op:02x?} @ {pos:02x}")
+            writeln!(env, "opcode {op:02x?} @ {pos:02x}")
         }
     }
 
@@ -869,11 +874,11 @@ fn parse_opcode<const ONLY_PRINT: bool>(reader: &mut Reader, func_offset: usize,
 mod tests {
     use core::fmt::Arguments;
 
-    use crate::{Context, execute_function, parse, VmContext};
+    use crate::{Environment, execute_function, parse, VmContext};
 
-    struct MyCtx;
+    struct MyEnv;
 
-    impl Context for MyCtx {
+    impl Environment for MyEnv {
         fn write_fmt(&mut self, _args: Arguments) {}
 
         fn ticks(&self) -> u64 {
@@ -888,10 +893,10 @@ mod tests {
     #[test]
     fn factorial() {
         let module =
-            parse(include_bytes!("../../tests/factorial.wasm"), &mut MyCtx).expect("parse module");
+            parse(include_bytes!("../../tests/factorial.wasm"), &mut MyEnv).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10 {
-            let result = execute_function::<MyCtx, (f64, ), f64>(&mut ctx, &module, b"fac".into(), (i as f64, ), &mut [], &mut [], &[], &mut MyCtx).unwrap();
+            let result = execute_function::<MyEnv, (f64, ), f64>(&mut ctx, &module, b"fac".into(), (i as f64, ), &mut [], &mut [], &[], &mut MyEnv).unwrap();
             assert_eq!(result, native_factorial(i) as f64);
         }
     }
@@ -899,11 +904,11 @@ mod tests {
     #[test]
     fn multivalue_sub() {
         let module =
-            parse(include_bytes!("../../tests/multivalue.wasm"), &mut MyCtx).expect("parse module");
+            parse(include_bytes!("../../tests/multivalue.wasm"), &mut MyEnv).expect("parse module");
         let mut ctx = VmContext::new();
         for i in 0..10i32 {
             for j in 10..20i32 {
-                let result = execute_function::<MyCtx, (i32, i32), i32>(&mut ctx, &module, b"reverseSub".into(), (i, j), &mut [], &mut [], &[], &mut MyCtx).unwrap();
+                let result = execute_function::<MyEnv, (i32, i32), i32>(&mut ctx, &module, b"reverseSub".into(), (i, j), &mut [], &mut [], &[], &mut MyEnv).unwrap();
                 assert_eq!(result, j - i);
             }
         }
@@ -912,22 +917,22 @@ mod tests {
     #[test]
     fn sum_array_of_f32() {
         let module =
-            parse(include_bytes!("../../tests/sum_array.wasm"), &mut MyCtx).expect("parse module");
+            parse(include_bytes!("../../tests/sum_array.wasm"), &mut MyEnv).expect("parse module");
         let mut ctx = VmContext::new();
         let mut numbers = [1.23f32, 4.56];
         let data = unsafe { core::slice::from_raw_parts_mut(numbers.as_mut_ptr().cast(), numbers.len() * 4) };
-        let result = execute_function::<MyCtx, (u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &mut [], &[], &mut MyCtx).unwrap();
+        let result = execute_function::<MyEnv, (u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &mut [], &[], &mut MyEnv).unwrap();
         assert_eq!(result, 5.79);
     }
 
     #[test]
     fn sum_array_of_f32_recurrent() {
         let module =
-            parse(include_bytes!("../../tests/sum_array_rec.wasm"), &mut MyCtx).expect("parse module");
+            parse(include_bytes!("../../tests/sum_array_rec.wasm"), &mut MyEnv).expect("parse module");
         let mut ctx = VmContext::new();
         let mut numbers = [1.23f32, 4.56, -10.0];
         let data = unsafe { core::slice::from_raw_parts_mut(numbers.as_mut_ptr().cast(), numbers.len() * 4) };
-        let result = execute_function::<MyCtx, (u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &mut [], &[], &mut MyCtx).unwrap();
+        let result = execute_function::<MyEnv, (u32, u32), f32>(&mut ctx, &module, b"sum_slice".into(), (0u32, numbers.len() as u32), data, &mut [], &[], &mut MyEnv).unwrap();
         assert_eq!(result, -4.21);
     }
 }

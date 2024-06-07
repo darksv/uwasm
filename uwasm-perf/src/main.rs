@@ -2,11 +2,11 @@ extern crate core;
 
 use std::fmt::Arguments;
 use std::io::Write;
-use uwasm::{parse, Context, ParserError, execute_function, VmContext, ImportedFunc, ByteStr, init_globals};
+use uwasm::{parse, Environment, ParserError, execute_function, VmContext, ImportedFunc, ByteStr, init_globals};
 
-struct MyCtx;
+struct MyEnv;
 
-impl Context for MyCtx {
+impl Environment for MyEnv {
     fn write_fmt(&mut self, #[allow(unused)] args: Arguments) {
         std::io::stdout().write_fmt(args).unwrap()
     }
@@ -28,8 +28,8 @@ fn main() -> Result<(), ParserError> {
 
     let content = std::fs::read(path).expect("read file");
 
-    let module = parse(&content, &mut MyCtx)?;
-    let mut imports: Vec<ImportedFunc<MyCtx>> = Vec::new();
+    let module = parse(&content, &mut MyEnv)?;
+    let mut imports: Vec<ImportedFunc<MyEnv>> = Vec::new();
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
             b"print" => |_, stack, memory| {
@@ -51,7 +51,7 @@ fn main() -> Result<(), ParserError> {
     for n in 0u32..runs {
         let mut mem = [0u8; 0x8000];
         println!(">>> Executing entry function");
-        let res = execute_function::<MyCtx, (u32,), u32>(&mut ctx, &module, b"entry".into(), (987654321, ), &mut mem, &mut globals, &imports, &mut MyCtx);
+        let res = execute_function::<MyEnv, (u32,), u32>(&mut ctx, &module, b"entry".into(), (987654321, ), &mut mem, &mut globals, &imports, &mut MyEnv);
         println!(">>> Result: {:?}", res);
     }
     println!("time = {:?}/execution", started.elapsed() / runs);

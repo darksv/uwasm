@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::fmt::Formatter;
 use core::iter;
 
-use crate::{ByteStr, Context, FuncBody, ParserError, WasmModule};
+use crate::{ByteStr, Environment, FuncBody, ParserError, WasmModule};
 #[cfg(debug_assertions)]
 use crate::{parse_opcode, ParserState};
 use crate::operand::Operand;
@@ -518,7 +518,7 @@ impl From<ParserError> for InterpreterError {
     }
 }
 
-pub type ImportedFunc<TContext> = fn(&mut TContext, &mut VmStack, &mut [u8]);
+pub type ImportedFunc<TEnv> = fn(&mut TEnv, &mut VmStack, &mut [u8]);
 
 pub fn init_globals(globals: &mut Vec<u8>, module: &WasmModule) {
     for global in &module.globals {
@@ -559,15 +559,15 @@ pub fn init_globals(globals: &mut Vec<u8>, module: &WasmModule) {
     }
 }
 
-pub fn execute_function<'code, TContext: Context, TArgs: FunctionArgs, TResult: Operand>(
+pub fn execute_function<'code, TEnv: Environment, TArgs: FunctionArgs, TResult: Operand>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
     func_name: &ByteStr,
     args: TArgs,
     memory: &mut [u8],
     globals: &mut [u8],
-    imports: &[ImportedFunc<TContext>],
-    execution_ctx: &mut TContext,
+    imports: &[ImportedFunc<TEnv>],
+    env: &mut TEnv,
 ) -> Result<TResult, InterpreterError> {
     let Some(func_idx) = module.get_function_index_by_name(func_name) else {
         return Err(InterpreterError::FunctionNotFound);
@@ -593,20 +593,20 @@ pub fn execute_function<'code, TContext: Context, TArgs: FunctionArgs, TResult: 
         buf: Vec::new(),
     };
     args.write_to(&mut args_mem);
-    evaluate(ctx, module, func_idx, &args_mem.buf, globals, memory, imports, execution_ctx)?;
+    evaluate(ctx, module, func_idx, &args_mem.buf, globals, memory, imports, env)?;
     TResult::pop(&mut ctx.stack)
 }
 
-pub fn evaluate<'code, TContext: Context>(
+pub fn evaluate<'code, TEnv: Environment>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
     func_idx: usize,
     args: &[u8],
     globals: &mut [u8],
     memory: &mut [u8],
-    imports: &[ImportedFunc<TContext>],
+    imports: &[ImportedFunc<TEnv>],
     #[allow(unused)]
-    x: &mut TContext,
+    env: &mut TEnv,
 ) -> Result<(), InterpreterError> {
     ctx.stack.data.clear();
 
@@ -646,17 +646,17 @@ pub fn evaluate<'code, TContext: Context>(
         {
             let mut reader = opcode_reader;
             let pos = reader.pos();
-            write!(x, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?} :: ", op, &ctx.stack);
-            _ = parse_opcode::<true>(&mut reader, pos, x, &mut ParserState::default());
+            write!(env, "{:02x?} @ {pos:02X} ({func_idx}) :: {:?} :: ", op, &ctx.stack);
+            _ = parse_opcode::<true>(&mut reader, pos, env, &mut ParserState::default());
             drop(reader);
         }
 
         ctx.profile.executed_instr_count[op as usize] += 1;
 
-        let start = x.ticks();
+        let start = env.ticks();
         match op {
             0x00 => {
-                writeln!(x, "entered unreachable");
+                writeln!(env, "entered unreachable");
                 return Err(InterpreterError::Unreachable);
             }
             0x02 => {
@@ -715,11 +715,11 @@ pub fn evaluate<'code, TContext: Context>(
                 // end
                 if let Some(block) = frame.blocks.pop() {
                     #[cfg(debug_assertions)]
-                    writeln!(x, "end of {:?}", block.kind);
+                    writeln!(env, "end of {:?}", block.kind);
                     _ = block;
                 } else {
                     #[cfg(debug_assertions)]
-                    writeln!(x, "exit function");
+                    writeln!(env, "exit function");
                 }
                 continue;
             }
@@ -737,7 +737,7 @@ pub fn evaluate<'code, TContext: Context>(
                 // TODO: check if this is correct
                 frame.blocks.drain(block_idx + 1..);
                 #[cfg(debug_assertions)]
-                writeln!(x, "taken");
+                writeln!(env, "taken");
             }
             0x0d => {
                 // br_if
@@ -755,10 +755,10 @@ pub fn evaluate<'code, TContext: Context>(
                     // TODO: check if this is correct
                     frame.blocks.drain(block_idx + 1..);
                     #[cfg(debug_assertions)]
-                    writeln!(x, "taken");
+                    writeln!(env, "taken");
                 } else {
                     #[cfg(debug_assertions)]
-                    writeln!(x, "not taken");
+                    writeln!(env, "not taken");
                 }
             }
             0x0f => {
@@ -769,7 +769,7 @@ pub fn evaluate<'code, TContext: Context>(
                 // call <func_idx>
                 let func_idx = reader.read_usize()?;
                 #[cfg(debug_assertions)]
-                writeln!(x, "calling {}", func_idx);
+                writeln!(env, "calling {}", func_idx);
 
                 if let Some(callee) = module.get_function_by_index(func_idx) {
                     ctx.call_stack.push(StackFrame {
@@ -784,8 +784,8 @@ pub fn evaluate<'code, TContext: Context>(
                     ctx.stack.pop_many(callee.params_len_in_bytes);
                 } else {
                     #[cfg(debug_assertions)]
-                    writeln!(x, "calling imported function {}", func_idx);
-                    imports[func_idx](x, &mut ctx.stack, memory);
+                    writeln!(env, "calling imported function {}", func_idx);
+                    imports[func_idx](env, &mut ctx.stack, memory);
                 }
             }
             0x1b => {
@@ -875,7 +875,7 @@ pub fn evaluate<'code, TContext: Context>(
                 let offset = fixed_offset.checked_add_signed(dyn_offset as _).unwrap();
                 let mem = Memory::from_slice(memory);
                 #[cfg(debug_assertions)]
-                writeln!(x, "load: mem[{fixed_offset}{dyn_offset:+}]");
+                writeln!(env, "load: mem[{fixed_offset}{dyn_offset:+}]");
                 match op {
                     0x28 => ctx.stack.push_i32(mem.read_i32(offset).unwrap()),
                     0x29 => ctx.stack.push_i64(mem.read_i64(offset).unwrap()),
@@ -914,7 +914,7 @@ pub fn evaluate<'code, TContext: Context>(
                         let val = ctx.stack.pop_i32()?;
                         let dyn_offset = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i32.store: mem[{fixed_offset}{dyn_offset:+}] <- {val}");
+                        writeln!(env, "i32.store: mem[{fixed_offset}{dyn_offset:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(dyn_offset).unwrap();
                         mem.write_i32(offset, val);
                     }
@@ -923,7 +923,7 @@ pub fn evaluate<'code, TContext: Context>(
                         let val = ctx.stack.pop_i64()?;
                         let idx = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i64.store: mem[{fixed_offset}{idx:+}] <- {val}");
+                        writeln!(env, "i64.store: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
                         mem.write_i64(offset, val);
                     }
@@ -934,7 +934,7 @@ pub fn evaluate<'code, TContext: Context>(
                         let val = ctx.stack.pop_i32()? as i8;
                         let idx = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i32.store8: mem[{fixed_offset}{idx:+}] <- {val}");
+                        writeln!(env, "i32.store8: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
                         mem.write_i8(offset, val);
                     }
@@ -943,7 +943,7 @@ pub fn evaluate<'code, TContext: Context>(
                         let val = ctx.stack.pop_i32()? as i16;
                         let idx = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
-                        writeln!(x, "i32.store16: mem[{fixed_offset}{idx:+}] <- {val}");
+                        writeln!(env, "i32.store16: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
                         mem.write_i16(offset, val);
                     }
@@ -1112,7 +1112,7 @@ pub fn evaluate<'code, TContext: Context>(
             _ => todo!("opcode {:02x?}", op),
         }
 
-        ctx.profile.executed_instr_time[op as usize] += x.ticks() - start;
+        ctx.profile.executed_instr_time[op as usize] += env.ticks() - start;
     }
 
     Ok(())

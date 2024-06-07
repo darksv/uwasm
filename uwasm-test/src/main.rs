@@ -6,9 +6,9 @@ use std::process::Command;
 use anyhow::{bail, Context};
 use uwasm::{ByteStr, evaluate, parse, VmContext};
 
-struct MyCtx;
+struct MyEnv;
 
-impl uwasm::Context for MyCtx {
+impl uwasm::Environment for MyEnv {
     fn write_fmt(&mut self, args: Arguments) {
         std::io::stdout().write_fmt(args).unwrap()
     }
@@ -179,7 +179,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             let content = std::fs::read(wasm_path).expect("read file");
-            let module = parse(&content, &mut MyCtx)?;
+            let module = parse(&content, &mut MyEnv)?;
             dbg!(&module);
 
             let idx = module.get_function_index_by_name(signature.name)
@@ -198,7 +198,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 let mut ctx = VmContext::new();
-                evaluate(&mut ctx, &module, idx, &mem, &mut [0; 1024], &mut [], &[], &mut MyCtx);
+                evaluate(&mut ctx, &module, idx, &mem, &mut [0; 1024], &mut [], &[], &mut MyEnv);
                 match signature.returns.as_bytes() {
                     b"u32" => {
                         let res = ctx.stack.pop_u32().unwrap();
