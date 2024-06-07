@@ -6,7 +6,7 @@ use core::iter;
 use crate::{ByteStr, Context, FuncBody, ParserError, WasmModule};
 #[cfg(debug_assertions)]
 use crate::{parse_opcode, ParserState};
-use crate::operand::{EvaluationError, Operand};
+use crate::operand::Operand;
 use crate::parser::{Reader, TypeKind};
 
 pub struct VmContext<'code> {
@@ -139,46 +139,48 @@ impl VmStack {
         self.push_bytes(TypeKind::I64, val.to_le_bytes());
     }
 
-    fn pop_bytes<const N: usize>(&mut self) -> Option<[u8; N]> {
-        let (rest, &bytes) = self.data.split_last_chunk::<N>()?;
+    fn pop_bytes<const N: usize>(&mut self) -> Result<[u8; N], InterpreterError> {
+        let (rest, &bytes) = self.data.split_last_chunk::<N>()
+            .ok_or_else(|| InterpreterError::StackTooSmall)?;
         self.data.drain(rest.len()..);
-        Some(bytes)
+        Ok(bytes)
     }
 
-    pub fn peek_bytes<const N: usize>(&self) -> Option<[u8; N]> {
+    pub fn peek_bytes<const N: usize>(&self) -> Result<[u8; N], InterpreterError> {
         self.data.split_last_chunk::<N>().map(|(_, bytes)| *bytes)
+            .ok_or_else(|| InterpreterError::StackTooSmall)
     }
 
     #[inline]
-    pub fn pop_i32(&mut self) -> Option<i32> {
+    pub fn pop_i32(&mut self) -> Result<i32, InterpreterError> {
         #[cfg(debug_assertions)]
         self.types.pop();
         self.pop_bytes().map(i32::from_le_bytes)
     }
 
     #[inline]
-    pub fn pop_i64(&mut self) -> Option<i64> {
+    pub fn pop_i64(&mut self) -> Result<i64, InterpreterError> {
         #[cfg(debug_assertions)]
         self.types.pop();
         self.pop_bytes().map(i64::from_le_bytes)
     }
 
     #[inline]
-    pub fn pop_u32(&mut self) -> Option<u32> {
+    pub fn pop_u32(&mut self) -> Result<u32, InterpreterError> {
         #[cfg(debug_assertions)]
         self.types.pop();
         self.pop_bytes().map(u32::from_le_bytes)
     }
 
     #[inline]
-    pub fn pop_f32(&mut self) -> Option<f32> {
+    pub fn pop_f32(&mut self) -> Result<f32, InterpreterError> {
         #[cfg(debug_assertions)]
         self.types.pop();
         self.pop_bytes().map(f32::from_le_bytes)
     }
 
     #[inline]
-    pub fn pop_f64(&mut self) -> Option<f64> {
+    pub fn pop_f64(&mut self) -> Result<f64, InterpreterError> {
         #[cfg(debug_assertions)]
         self.types.pop();
         self.pop_bytes().map(f64::from_le_bytes)
@@ -199,7 +201,7 @@ impl VmStack {
 
     #[inline]
     #[track_caller]
-    fn inplace_bin_op<T: Operand, U: Operand, R: Operand>(&mut self, op: impl FnOnce(T, U) -> R) -> Result<R, EvaluationError> {
+    fn inplace_bin_op<T: Operand, U: Operand, R: Operand>(&mut self, op: impl FnOnce(T, U) -> R) -> Result<R, InterpreterError> {
         let b = U::pop(self)?;
         let a = T::pop(self)?;
         let result = op(a, b);
@@ -209,7 +211,7 @@ impl VmStack {
 
     #[inline]
     #[track_caller]
-    fn inplace_unary_op<T: Operand, R: Operand>(&mut self, op: impl FnOnce(T) -> R) -> Result<R, EvaluationError> {
+    fn inplace_unary_op<T: Operand, R: Operand>(&mut self, op: impl FnOnce(T) -> R) -> Result<R, InterpreterError> {
         let a = T::pop(self)?;
         let result = op(a);
         R::push(self, result);
@@ -494,12 +496,20 @@ tuple_impls! { A B C D E F G H I J K L }
 // variadic tuples... 🙏
 
 #[derive(Debug)]
-pub enum ExecutionError {
-    FunctionNotExists,
+pub enum InterpreterError {
+    ParserError(ParserError),
+    FunctionNotFound,
+    FunctionWithoutBody,
     InvalidSignature,
-    EmptyStack,
-    EvaluationError(EvaluationError),
-    MissingFunctionBody,
+    StackEmpty,
+    StackTooSmall,
+    Unreachable,
+}
+
+impl From<ParserError> for InterpreterError {
+    fn from(value: ParserError) -> Self {
+        Self::ParserError(value)
+    }
 }
 
 pub type ImportedFunc<TContext> = fn(&mut TContext, &mut VmStack, &mut [u8]);
@@ -552,22 +562,22 @@ pub fn execute_function<'code, TContext: Context, TArgs: FunctionArgs, TResult: 
     globals: &mut [u8],
     imports: &[ImportedFunc<TContext>],
     execution_ctx: &mut TContext,
-) -> Result<TResult, ExecutionError> {
+) -> Result<TResult, InterpreterError> {
     let Some(func_idx) = module.get_function_index_by_name(func_name) else {
-        return Err(ExecutionError::FunctionNotExists);
+        return Err(InterpreterError::FunctionNotFound);
     };
 
     let Some(func) = &module.functions[func_idx].body else {
-        return Err(ExecutionError::MissingFunctionBody);
+        return Err(InterpreterError::FunctionWithoutBody);
     };
 
     if func.signature.params.len() != TArgs::TYPE.len() {
-        return Err(ExecutionError::InvalidSignature);
+        return Err(InterpreterError::InvalidSignature);
     }
 
     for (expected, actual) in iter::zip(&func.signature.params, TArgs::TYPE) {
         if expected != actual {
-            return Err(ExecutionError::InvalidSignature);
+            return Err(InterpreterError::InvalidSignature);
         }
     }
 
@@ -577,8 +587,8 @@ pub fn execute_function<'code, TContext: Context, TArgs: FunctionArgs, TResult: 
         buf: Vec::new(),
     };
     args.write_to(&mut args_mem);
-    evaluate(ctx, module, func_idx, &args_mem.buf, globals, memory, imports, execution_ctx);
-    TResult::pop(&mut ctx.stack).map_err(ExecutionError::EvaluationError)
+    evaluate(ctx, module, func_idx, &args_mem.buf, globals, memory, imports, execution_ctx)?;
+    TResult::pop(&mut ctx.stack)
 }
 
 pub fn evaluate<'code, TContext: Context>(
@@ -591,9 +601,14 @@ pub fn evaluate<'code, TContext: Context>(
     imports: &[ImportedFunc<TContext>],
     #[allow(unused)]
     x: &mut TContext,
-) {
+) -> Result<(), InterpreterError> {
     ctx.stack.data.clear();
-    copy_params_and_locals(&mut ctx.locals, args, module.get_function_by_index(func_idx).as_ref().unwrap());
+
+    let Some(func) = module.get_function_by_index(func_idx) else {
+        return Err(InterpreterError::FunctionNotFound);
+    };
+
+    copy_params_and_locals(&mut ctx.locals, args, func);
     ctx.call_stack.clear();
     ctx.call_stack.push(StackFrame::new(
         module,
@@ -602,7 +617,8 @@ pub fn evaluate<'code, TContext: Context>(
     ));
 
     while let Some(frame) = ctx.call_stack.last_mut() {
-        let current_func = module.get_function_by_index(frame.func_idx).unwrap();
+        let current_func = module.get_function_by_index(frame.func_idx)
+            .expect("function existed at time of the call");
         let reader = &mut frame.reader;
         let pos = current_func.offset + reader.pos();
 
@@ -617,7 +633,7 @@ pub fn evaluate<'code, TContext: Context>(
                 // don't care if this is the last call - it will be taken care of before next iteration
                 continue;
             }
-            Err(e) => panic!("other err: {e:?}"),
+            Err(e) => panic!("other error: {e:?}"),
         };
 
         #[cfg(debug_assertions)]
@@ -635,7 +651,7 @@ pub fn evaluate<'code, TContext: Context>(
         match op {
             0x00 => {
                 writeln!(x, "entered unreachable");
-                break;
+                return Err(InterpreterError::Unreachable);
             }
             0x02 => {
                 // block
@@ -664,19 +680,19 @@ pub fn evaluate<'code, TContext: Context>(
                     TypeKind::Func => todo!(),
                     TypeKind::FuncRef => todo!(),
                     TypeKind::F32 => {
-                        let x = ctx.stack.pop_f32().unwrap();
+                        let x = ctx.stack.pop_f32()?;
                         x != 0.0
                     }
                     TypeKind::F64 => {
-                        let x = ctx.stack.pop_f64().unwrap();
+                        let x = ctx.stack.pop_f64()?;
                         x != 0.0
                     }
                     TypeKind::I32 => {
-                        let x = ctx.stack.pop_i32().unwrap();
+                        let x = ctx.stack.pop_i32()?;
                         x != 0
                     }
                     TypeKind::I64 => {
-                        let x = ctx.stack.pop_i64().unwrap();
+                        let x = ctx.stack.pop_i64()?;
                         x != 0
                     }
                 };
@@ -693,7 +709,7 @@ pub fn evaluate<'code, TContext: Context>(
                 // end
                 if let Some(block) = frame.blocks.pop() {
                     #[cfg(debug_assertions)]
-                    writeln!(x, "end {:?}", block.kind);
+                    writeln!(x, "end of {:?}", block.kind);
                     _ = block;
                 } else {
                     #[cfg(debug_assertions)]
@@ -1082,4 +1098,6 @@ pub fn evaluate<'code, TContext: Context>(
 
         ctx.profile.executed_instr_time[op as usize] += x.ticks() - start;
     }
+
+    Ok(())
 }
