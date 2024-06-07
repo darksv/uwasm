@@ -685,22 +685,10 @@ pub fn evaluate<'code, TEnv: Environment>(
                     TypeKind::Void => todo!(),
                     TypeKind::Func => todo!(),
                     TypeKind::FuncRef => todo!(),
-                    TypeKind::F32 => {
-                        let x = ctx.stack.pop_f32()?;
-                        x != 0.0
-                    }
-                    TypeKind::F64 => {
-                        let x = ctx.stack.pop_f64()?;
-                        x != 0.0
-                    }
-                    TypeKind::I32 => {
-                        let x = ctx.stack.pop_i32()?;
-                        x != 0
-                    }
-                    TypeKind::I64 => {
-                        let x = ctx.stack.pop_i64()?;
-                        x != 0
-                    }
+                    TypeKind::F32 => ctx.stack.pop_f32()? != 0.0,
+                    TypeKind::F64 => ctx.stack.pop_f64()? != 0.0,
+                    TypeKind::I32 => ctx.stack.pop_i32()? != 0,
+                    TypeKind::I64 => ctx.stack.pop_i64()? != 0,
                 };
 
                 if !cond {
@@ -869,7 +857,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                 // i64.load16_u 0x33
                 // i64.load32_s 0x34
                 // i64.load32_u 0x35
-                let alignment = reader.read_usize()?;
+                let _alignment = reader.read_usize()?;
                 let fixed_offset = reader.read_usize()?;
                 let dyn_offset = ctx.stack.pop_i32()?;
                 let offset = fixed_offset.checked_add_signed(dyn_offset as _).unwrap();
@@ -905,7 +893,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                 // i64.store16 	0x3d
                 // i64.store32 	0x3e
                 let mem = Memory::from_slice_mut(memory);
-                let alignment = reader.read_usize()?;
+                let _alignment = reader.read_usize()?;
                 let fixed_offset = reader.read_usize()?;
 
                 match op {

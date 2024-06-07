@@ -198,7 +198,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 let mut ctx = VmContext::new();
-                evaluate(&mut ctx, &module, idx, &mem, &mut [0; 1024], &mut [], &[], &mut MyEnv);
+                evaluate(&mut ctx, &module, idx, &mem, &mut [0; 1024], &mut [], &[], &mut MyEnv).unwrap();
                 match signature.returns.as_bytes() {
                     b"u32" => {
                         let res = ctx.stack.pop_u32().unwrap();

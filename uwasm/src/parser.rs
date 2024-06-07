@@ -66,11 +66,6 @@ impl<'code> Reader<'code> {
         }
     }
 
-    pub(crate) fn read_delimited(&mut self, delimiter: u8) -> Result<&'code [u8], ParserError> {
-        let n = self.data[self.pos..].iter().take_while(|c| **c != delimiter).count();
-        self.read_slice(n + 1)
-    }
-
     #[inline]
     pub(crate) fn read_u8(&mut self) -> Result<u8, ParserError> {
         self.read_bytes::<1>().map(|b| b[0])
