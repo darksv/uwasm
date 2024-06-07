@@ -94,7 +94,7 @@ impl Operand for f32 {
 impl Operand for f64 {
     const TYPE: TypeKind = TypeKind::F64;
     fn pop(stack: &mut VmStack) -> Result<Self, InterpreterError> {
-        stack.pop_f64().map_err(|x| InterpreterError::StackEmpty)
+        stack.pop_f64()
     }
 
     fn push(stack: &mut VmStack, value: Self) {
