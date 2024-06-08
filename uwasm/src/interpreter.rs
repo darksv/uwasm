@@ -366,7 +366,6 @@ impl Memory {
         unsafe { core::mem::transmute(data) }
     }
 
-    #[allow(unused)]
     pub fn from_slice_mut(data: &mut [u8]) -> &mut Self {
         unsafe { core::mem::transmute(data) }
     }
@@ -615,7 +614,6 @@ pub fn evaluate<'code, TEnv: Environment>(
     globals: &mut [u8],
     memory: &mut [u8],
     imports: &[ImportedFunc<TEnv>],
-    #[allow(unused)]
     env: &mut TEnv,
 ) -> Result<(), InterpreterError> {
     ctx.stack.data.clear();

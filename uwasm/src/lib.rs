@@ -149,7 +149,6 @@ fn offsets_of_types(types: impl ExactSizeIterator<Item=TypeKind>) -> Vec<usize> 
     offsets
 }
 
-#[allow(unused)]
 pub fn parse<'code>(
     code: &'code [u8],
     env: &mut impl Environment,
@@ -166,6 +165,7 @@ pub fn parse<'code>(
     while let Ok(section_type) = reader.read::<SectionKind>() {
         let _section_size = reader.read_usize()?;
         match section_type {
+            #[allow(unused)]
             SectionKind::Custom => {
                 let name = reader.read_str()?;
                 writeln!(env, "Found custom section: {}", name);
@@ -244,18 +244,18 @@ pub fn parse<'code>(
 
                 let num_tables = reader.read_usize()?;
                 for _ in 0..num_tables {
-                    let kind = reader.read::<TypeKind>()?;
-                    let limits_flags = reader.read_u8()?;
-                    let limits_initial = reader.read_u8()?;
-                    let limits_max = reader.read_u8()?;
+                    let _kind = reader.read::<TypeKind>()?;
+                    let _limits_flags = reader.read_u8()?;
+                    let _limits_initial = reader.read_u8()?;
+                    let _limits_max = reader.read_u8()?;
                 }
             }
             SectionKind::Memory => {
                 writeln!(env, "Found memory section");
                 let num_memories = reader.read_usize()?;
                 for _ in 0..num_memories {
-                    let limits_flags = reader.read_u8()?;
-                    let limits_initial = reader.read_u8()?;
+                    let _limits_flags = reader.read_u8()?;
+                    let _limits_initial = reader.read_u8()?;
                 }
             }
             SectionKind::Global => {
@@ -296,7 +296,7 @@ pub fn parse<'code>(
                 writeln!(env, "Found elem section");
                 let num_elem_segments = reader.read_usize()?;
                 for _ in 0..num_elem_segments {
-                    let segment_flags = reader.read_u8()?;
+                    let _segment_flags = reader.read_u8()?;
                     loop {
                         let opcode = reader.read_u8()?;
                         match opcode {
@@ -325,7 +325,7 @@ pub fn parse<'code>(
                 for func_idx in 0..num_funcs {
                     let signature = signatures[functions[imports + func_idx].signature.unwrap()].clone();
 
-                    let body_len = reader.read_usize()?;
+                    let _body_len = reader.read_usize()?;
                     let locals_num = reader.read_usize()?;
 
                     let mut locals_types = Vec::new();

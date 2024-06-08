@@ -72,25 +72,24 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
-    #[allow(unused)]
     pub(crate) fn read_u32(&mut self) -> Result<u32, ParserError> {
         self.read_bytes::<4>().map(|b| u32::from_le_bytes(*b))
     }
 
     #[inline]
-    #[allow(unused)]
+    #[cfg(debug_assertions)]
     pub(crate) fn read_i32(&mut self) -> Result<i32, ParserError> {
         self.read_u32().map(|v| v as i32)
     }
 
     #[inline]
-    #[allow(unused)]
+    #[cfg(debug_assertions)]
     pub(crate) fn read_u64(&mut self) -> Result<u64, ParserError> {
         self.read_bytes::<8>().map(|b| u64::from_le_bytes(*b))
     }
 
     #[inline]
-    #[allow(unused)]
+    #[cfg(debug_assertions)]
     pub(crate) fn read_i64(&mut self) -> Result<i64, ParserError> {
         self.read_u64().map(|v| v as i64)
     }
@@ -138,7 +137,6 @@ impl<'code> Reader<'code> {
     }
 
     #[inline]
-    #[allow(unused)]
     pub(crate) fn read_f32(&mut self) -> Result<f32, ParserError> {
         self.read_bytes().map(|b| f32::from_le_bytes(*b))
     }

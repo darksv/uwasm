@@ -7,7 +7,7 @@ use uwasm::{parse, Environment, ParserError, execute_function, VmContext, Import
 struct MyEnv;
 
 impl Environment for MyEnv {
-    fn write_fmt(&mut self, #[allow(unused)] args: Arguments) {
+    fn write_fmt(&mut self, args: Arguments) {
         std::io::stdout().write_fmt(args).unwrap()
     }
 
