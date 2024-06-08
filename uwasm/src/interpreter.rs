@@ -387,69 +387,79 @@ impl Memory {
         raw.copy_from_slice(bytes);
     }
 
+    #[inline]
     fn read_i8(&self, offset: usize) -> Option<i8> {
         self.read_bytes_at(offset).map(i8::from_ne_bytes)
     }
 
+    #[inline]
     fn read_u8(&self, offset: usize) -> Option<u8> {
         self.read_bytes_at(offset).map(u8::from_ne_bytes)
     }
 
+    #[inline]
     fn read_i16(&self, offset: usize) -> Option<i16> {
         self.read_bytes_at(offset).map(i16::from_ne_bytes)
     }
 
+    #[inline]
     fn read_u16(&self, offset: usize) -> Option<u16> {
         self.read_bytes_at(offset).map(u16::from_ne_bytes)
     }
 
-    fn write_u8(&mut self, offset: usize, value: u8) {
-        self.write_bytes_at(offset, &value.to_ne_bytes());
-    }
-
-    fn write_i8(&mut self, offset: usize, value: i8) {
-        self.write_bytes_at(offset, &value.to_ne_bytes());
-    }
-
-    fn write_u16(&mut self, offset: usize, value: u16) {
-        self.write_bytes_at(offset, &value.to_ne_bytes());
-    }
-
-    fn write_i16(&mut self, offset: usize, value: i16) {
-        self.write_bytes_at(offset, &value.to_ne_bytes());
-    }
-
-    fn write_i32(&mut self, offset: usize, value: i32) {
-        self.write_bytes_at(offset, &value.to_ne_bytes());
-    }
-
-    fn write_i64(&mut self, offset: usize, value: i64) {
-        self.write_bytes_at(offset, &value.to_ne_bytes());
-    }
-
-    #[track_caller]
-    fn write_u64(&mut self, offset: usize, value: u64) {
-        self.write_bytes_at(offset, &value.to_ne_bytes());
-    }
-
+    #[inline]
     fn read_i32(&self, offset: usize) -> Option<i32> {
         self.read_bytes_at(offset).map(i32::from_ne_bytes)
     }
 
+    #[inline]
     fn read_u32(&self, offset: usize) -> Option<u32> {
         self.read_bytes_at(offset).map(u32::from_ne_bytes)
     }
 
+    #[inline]
     fn read_i64(&self, offset: usize) -> Option<i64> {
         self.read_bytes_at(offset).map(i64::from_ne_bytes)
     }
 
+    #[inline]
     fn read_f32(&self, offset: usize) -> Option<f32> {
         self.read_bytes_at(offset).map(f32::from_ne_bytes)
     }
 
+    #[inline]
     fn read_f64(&self, offset: usize) -> Option<f64> {
         self.read_bytes_at(offset).map(f64::from_ne_bytes)
+    }
+
+    #[inline]
+    fn write_i8(&mut self, offset: usize, value: i8) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    #[inline]
+    fn write_i16(&mut self, offset: usize, value: i16) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    #[inline]
+    fn write_i32(&mut self, offset: usize, value: i32) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    #[inline]
+    fn write_i64(&mut self, offset: usize, value: i64) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    #[inline]
+    fn write_f32(&mut self, offset: usize, value: f32) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
+    }
+
+    #[inline]
+    fn write_f64(&mut self, offset: usize, value: f64) {
+        self.write_bytes_at(offset, &value.to_ne_bytes());
     }
 }
 
@@ -909,14 +919,30 @@ pub fn evaluate<'code, TEnv: Environment>(
                     0x37 => {
                         // i64.store
                         let val = ctx.stack.pop_i64()?;
-                        let idx = ctx.stack.pop_i32()? as isize;
+                        let dyn_offset = ctx.stack.pop_i32()? as isize;
                         #[cfg(debug_assertions)]
-                        writeln!(env, "i64.store: mem[{fixed_offset}{idx:+}] <- {val}");
-                        let offset = fixed_offset.checked_add_signed(idx).unwrap();
+                        writeln!(env, "i64.store: mem[{fixed_offset}{dyn_offset:+}] <- {val}");
+                        let offset = fixed_offset.checked_add_signed(dyn_offset).unwrap();
                         mem.write_i64(offset, val);
                     }
-                    0x38 => todo!(), // f32.store
-                    0x39 => todo!(), // f64.store
+                    0x38 => {
+                        // f32.store
+                        let val = ctx.stack.pop_f32()?;
+                        let dyn_offset = ctx.stack.pop_i32()? as isize;
+                        #[cfg(debug_assertions)]
+                        writeln!(env, "f32.store: mem[{fixed_offset}{dyn_offset:+}] <- {val}");
+                        let offset = fixed_offset.checked_add_signed(dyn_offset).unwrap();
+                        mem.write_f32(offset, val);
+                    }
+                    0x39 => {
+                        // f64.store
+                        let val = ctx.stack.pop_f64()?;
+                        let dyn_offset = ctx.stack.pop_i32()? as isize;
+                        #[cfg(debug_assertions)]
+                        writeln!(env, "f64.store: mem[{fixed_offset}{dyn_offset:+}] <- {val}");
+                        let offset = fixed_offset.checked_add_signed(dyn_offset).unwrap();
+                        mem.write_f64(offset, val);
+                    }
                     0x3a => {
                         // i32.store8
                         let val = ctx.stack.pop_i32()? as i8;
@@ -935,9 +961,33 @@ pub fn evaluate<'code, TEnv: Environment>(
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
                         mem.write_i16(offset, val);
                     }
-                    0x3c => todo!(), // i64.store8
-                    0x3d => todo!(), // i64.store16
-                    0x3e => todo!(), // i64.store32
+                    0x3c => {
+                        // i64.store8
+                        let val = ctx.stack.pop_i64()? as i8;
+                        let idx = ctx.stack.pop_i32()? as isize;
+                        #[cfg(debug_assertions)]
+                        writeln!(env, "i64.store8: mem[{fixed_offset}{idx:+}] <- {val}");
+                        let offset = fixed_offset.checked_add_signed(idx).unwrap();
+                        mem.write_i8(offset, val);
+                    },
+                    0x3d => {
+                        // i64.store16
+                        let val = ctx.stack.pop_i64()? as i16;
+                        let idx = ctx.stack.pop_i32()? as isize;
+                        #[cfg(debug_assertions)]
+                        writeln!(env, "i64.store8: mem[{fixed_offset}{idx:+}] <- {val}");
+                        let offset = fixed_offset.checked_add_signed(idx).unwrap();
+                        mem.write_i16(offset, val);
+                    },
+                    0x3e => {
+                        // i64.store32
+                        let val = ctx.stack.pop_i64()? as i32;
+                        let idx = ctx.stack.pop_i32()? as isize;
+                        #[cfg(debug_assertions)]
+                        writeln!(env, "i64.store8: mem[{fixed_offset}{idx:+}] <- {val}");
+                        let offset = fixed_offset.checked_add_signed(idx).unwrap();
+                        mem.write_i32(offset, val);
+                    },
                     _ => unreachable!(),
                 }
             }
