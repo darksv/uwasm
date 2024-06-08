@@ -13,7 +13,7 @@ use esp_hal::{
     gpio::Io, gpio::Level,
     delay::Delay,
 };
-use esp_hal::gpio::{AnyOutput, GpioPin, Output};
+use esp_hal::gpio::{AnyOutput};
 use esp_hal::system::SystemControl;
 use esp_hal::timer::systimer::SystemTimer;
 use uwasm::{Environment, parse, VmContext, execute_function, ImportedFunc};
@@ -54,8 +54,6 @@ fn main() -> ! {
     let module = parse(include_bytes!("../../hello_led.wasm"), &mut env).expect("parse module");
     let mut imports: Vec<ImportedFunc<MyEnv>> = Vec::new();
 
-    let delay = Delay::new(&clocks);
-
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
             b"sleep_ms" => |env, stack, memory| {
@@ -86,7 +84,7 @@ fn main() -> ! {
     let mut vm_ctx = VmContext::new();
     loop {
         let start = SystemTimer::now();
-        for i in 0..100 {
+        for _ in 0..100 {
             let _ = execute_function::<MyEnv, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut env);
         }
         let elapsed = SystemTimer::now() - start;
