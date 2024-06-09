@@ -16,7 +16,7 @@ use esp_hal::{
 use esp_hal::gpio::{AnyOutput};
 use esp_hal::system::SystemControl;
 use esp_hal::timer::systimer::SystemTimer;
-use uwasm::{Environment, parse, VmContext, execute_function, ImportedFunc};
+use uwasm::{Environment, parse, VmContext, execute_function, ImportedFunc, init_globals};
 
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
@@ -77,12 +77,11 @@ fn main() -> ! {
     }
 
     let mut globals = Vec::new();
-    // stack pointer
-    globals.extend_from_slice(&32u64.to_ne_bytes());
-    let mut mem = [0u8; 32];
+    init_globals(&mut globals, &module);
 
     let mut vm_ctx = VmContext::new();
     loop {
+        let mut mem = [0u8; 32];
         let start = SystemTimer::now();
         for _ in 0..100 {
             let _ = execute_function::<MyEnv, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut env);
