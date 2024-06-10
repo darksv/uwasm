@@ -596,7 +596,15 @@ pub fn execute_function<'code, TEnv: Environment, TArgs: FunctionArgs, TResult: 
         }
     }
 
-    // TODO: check result types
+    let valid_return = match &func.signature.results[..] {
+        [] => TResult::TYPE == TypeKind::Void,
+        [ty] => *ty == TResult::TYPE,
+        _ => todo!("check multi-value return types"),
+    };
+
+    if !valid_return {
+        return Err(InterpreterError::InvalidSignature);
+    }
 
     let mut args_mem = Serializer {
         buf: Vec::new(),
