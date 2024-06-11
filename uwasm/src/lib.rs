@@ -22,7 +22,6 @@ mod operand;
 #[derive(Debug, Clone)]
 struct FuncSignature {
     params: Vec<TypeKind>,
-    #[allow(unused)]
     results: Vec<TypeKind>,
 }
 
@@ -694,6 +693,18 @@ fn parse_opcode<const ONLY_PRINT: bool>(
             // i32.ge_u
             writeln!(env, "i32.ge_u");
         }
+        0x50 => {
+            // i64.eqz
+            writeln!(env, "i64.eqz");
+        }
+        0x52 => {
+            // i64.ne
+            writeln!(env, "i64.ne");
+        }
+        0x54 => {
+            // i64.lt_u
+            writeln!(env, "i64.lt_u");
+        }
         0x56 => {
             // i64.gt_u
             writeln!(env, "i64.gt_u");
@@ -805,6 +816,10 @@ fn parse_opcode<const ONLY_PRINT: bool>(
         0x80 => {
             // i64.div_u
             writeln!(env, "i64.div_u");
+        }
+        0x83 => {
+            // i64.and
+            writeln!(env, "i64.and");
         }
         0x84 => {
             // i64.or

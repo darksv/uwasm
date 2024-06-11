@@ -46,7 +46,7 @@ mod api {
 
 #[no_mangle]
 #[export_name = "entry"]
-pub fn entry(n: u32) {
+pub fn entry(n: u32) -> u32 {
     use api::State;
 
     let mut state = State::Low;

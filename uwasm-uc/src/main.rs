@@ -84,7 +84,8 @@ fn main() -> ! {
         let mut mem = [0u8; 32];
         let start = SystemTimer::now();
         for _ in 0..100 {
-            let _ = execute_function::<MyEnv, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut env);
+            let result = execute_function::<MyEnv, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut env);
+            println!("Result: {:?}", result);
         }
         let elapsed = SystemTimer::now() - start;
         println!("ticks: {elapsed}");

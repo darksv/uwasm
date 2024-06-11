@@ -1061,6 +1061,22 @@ pub fn evaluate<'code, TEnv: Environment>(
                 // i32.ge_u
                 ctx.stack.inplace_bin_op(|a: u32, b: u32| a >= b)?;
             }
+            0x50 => {
+                // i64.eqz
+                ctx.stack.inplace_unary_op(|a: i64| a == 0)?;
+            }
+            0x52 => {
+                // i64.ne
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a != b)?;
+            }
+            0x54 => {
+                // i64.lt_u
+                ctx.stack.inplace_bin_op(|a: u64, b: u64| a < b)?;
+            }
+            0x56 => {
+                // i64.gt_u
+                ctx.stack.inplace_bin_op(|a: u64, b: u64| a > b)?;
+            }
             0x63 => {
                 // f64.lt
                 ctx.stack.inplace_bin_op(|a: f64, b: f64| (a < b) as i32 as f64)?;
@@ -1109,9 +1125,17 @@ pub fn evaluate<'code, TEnv: Environment>(
                 // i32.shr_u
                 ctx.stack.inplace_bin_op(|a: i32, b: i32| a >> b)?;
             }
+            0x7c => {
+                // i64.add
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a + b)?;
+            }
             0x7e => {
                 // i64.mul
                 ctx.stack.inplace_bin_op(|a: i64, b: i64| a * b)?;
+            }
+            0x83 => {
+                // i64.and
+                ctx.stack.inplace_bin_op(|a: i64, b: i64| a & b)?;
             }
             0x84 => {
                 // i64.or

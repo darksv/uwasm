@@ -39,6 +39,15 @@ fn main() -> Result<(), ParserError> {
                 println!(">>> PRINT FROM VM: {:?}", s);
                 stack.push_i32(0);
             },
+            b"sleep_ms" => |_, stack, _memory| {
+                let sleep = stack.pop_u32().unwrap();
+                println!(">>> sleeping for {sleep} ms")
+            },
+            b"set_output" => |_, stack, _memory| {
+                let state = stack.pop_u32().unwrap();
+                let pin = stack.pop_u32().unwrap();
+                println!(">>> setting pin {pin} to {state}")
+            },
             _ => todo!("{:?}", name),
         });
     }
@@ -49,9 +58,9 @@ fn main() -> Result<(), ParserError> {
     let started = std::time::Instant::now();
     let mut ctx = VmContext::new();
     for _n in 0u32..runs {
-        let mut mem = [0u8; 0x8000];
+        let mut mem = vec![0u8; 1024 * 1024 * 2];
         println!(">>> Executing entry function");
-        let res = execute_function::<MyEnv, (u32,), u32>(&mut ctx, &module, b"entry".into(), (987654321, ), &mut mem, &mut globals, &imports, &mut MyEnv);
+        let res = execute_function::<MyEnv, (u32, ), u32>(&mut ctx, &module, b"entry".into(), (987654321, ), &mut mem, &mut globals, &imports, &mut MyEnv);
         println!(">>> Result: {:?}", res);
     }
     println!("time = {:?}/execution", started.elapsed() / runs);
