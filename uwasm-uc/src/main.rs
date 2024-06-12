@@ -22,7 +22,8 @@ use uwasm::{Environment, parse, VmContext, execute_function, ImportedFunc, init_
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
 struct MyEnv<'io> {
-    led: AnyOutput<'io>,
+    led1: AnyOutput<'io>,
+    led2: AnyOutput<'io>,
     delay: Delay,
 }
 
@@ -47,7 +48,8 @@ fn main() -> ! {
     init_heap();
 
     let mut env = MyEnv {
-        led: AnyOutput::new(io.pins.gpio18, Level::High),
+        led1: AnyOutput::new(io.pins.gpio18, Level::High),
+        led2: AnyOutput::new(io.pins.gpio19, Level::High),
         delay: Delay::new(&clocks),
     };
 
@@ -56,18 +58,20 @@ fn main() -> ! {
 
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
-            b"sleep_ms" => |env, stack, memory| {
+            b"sleep_ms" => |env, stack, _memory| {
                 let sleep = stack.pop_u32().unwrap();
                 env.delay.delay_millis(sleep);
                 println!(">>> sleeping for {sleep} ms");
             },
-            b"set_output" => |env, stack, memory| {
+            b"set_output" => |env, stack, _memory| {
                 let state = stack.pop_u32().unwrap();
                 let pin = stack.pop_u32().unwrap();
 
-                match state {
-                    0 => env.led.set_low(),
-                    1 => env.led.set_high(),
+                match (state, pin) {
+                    (0, 0) => env.led1.set_low(),
+                    (1, 0) => env.led1.set_high(),
+                    (0, 1) => env.led2.set_low(),
+                    (1, 1) => env.led2.set_high(),
                     _ => unimplemented!(),
                 }
                 println!(">>> setting pin {pin} to {state}")
@@ -83,7 +87,8 @@ fn main() -> ! {
     let mut mem = [0u8; 1024];
     loop {
         let start = SystemTimer::now();
-        for _ in 0..100 {
+        for _ in 0..10 {
+            println!("Executing entry function...");
             let result = execute_function::<MyEnv, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut env);
             println!("Result: {:?}", result);
         }

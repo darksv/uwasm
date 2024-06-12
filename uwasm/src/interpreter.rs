@@ -1133,6 +1133,14 @@ pub fn evaluate<'code, TEnv: Environment>(
                 // i64.mul
                 ctx.stack.inplace_bin_op(|a: i64, b: i64| a * b)?;
             }
+            0x80 => {
+                // i64.div_u
+                ctx.stack.inplace_bin_op(|a: u64, b: u64| a / b)?;
+            }
+            0x82 => {
+                // i64.rem_u
+                ctx.stack.inplace_bin_op(|a: u64, b: u64| a % b)?;
+            }
             0x83 => {
                 // i64.and
                 ctx.stack.inplace_bin_op(|a: i64, b: i64| a & b)?;

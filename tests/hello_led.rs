@@ -50,11 +50,17 @@ pub fn entry(n: u32) -> u32 {
     use api::State;
 
     let mut state = State::Low;
-    loop {
+    for i in 0..10 {
         api::set_output(0, state);
-        api::sleep(Duration::from_secs(1));
+        api::sleep(Duration::from_millis(10 * i * n as u64));
+
+        api::set_output(1, state);
+        api::sleep(Duration::from_millis(20 * i * n as u64));
+
         state = state.toggle()
     }
+
+    0
 }
 
-// rustc --target=wasm32-unknown-unknown -C link-args=-z stack-size=1024 tests/hello_led.rs
+// rustc --target=wasm32-unknown-unknown -C link-args=-z stack-size=512 tests/hello_led.rs

@@ -817,6 +817,10 @@ fn parse_opcode<const ONLY_PRINT: bool>(
             // i64.div_u
             writeln!(env, "i64.div_u");
         }
+        0x82 => {
+            // i64.rem_u
+            writeln!(env, "i64.rem_u");
+        }
         0x83 => {
             // i64.and
             writeln!(env, "i64.and");
