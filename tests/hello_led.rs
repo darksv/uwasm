@@ -57,4 +57,4 @@ pub fn entry(n: u32) -> u32 {
     }
 }
 
-// rustc --target=wasm32-unknown-unknown foo.rs -C panic=abort
+// rustc --target=wasm32-unknown-unknown -C link-args=-z stack-size=1024 tests/hello_led.rs

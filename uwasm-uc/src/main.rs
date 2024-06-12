@@ -80,8 +80,8 @@ fn main() -> ! {
     init_globals(&mut globals, &module);
 
     let mut vm_ctx = VmContext::new();
+    let mut mem = [0u8; 1024];
     loop {
-        let mut mem = [0u8; 32];
         let start = SystemTimer::now();
         for _ in 0..100 {
             let result = execute_function::<MyEnv, (u32, ), u32>(&mut vm_ctx, &module, b"entry".into(), (12u32, ), &mut mem, &mut globals, &imports, &mut env);

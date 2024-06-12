@@ -57,8 +57,8 @@ fn main() -> Result<(), ParserError> {
 
     let started = std::time::Instant::now();
     let mut ctx = VmContext::new();
+    let mut mem = [0u8; 1024];
     for _n in 0u32..runs {
-        let mut mem = vec![0u8; 1024 * 1024 * 2];
         println!(">>> Executing entry function");
         let res = execute_function::<MyEnv, (u32, ), u32>(&mut ctx, &module, b"entry".into(), (987654321, ), &mut mem, &mut globals, &imports, &mut MyEnv);
         println!(">>> Result: {:?}", res);
