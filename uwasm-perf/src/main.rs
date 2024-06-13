@@ -2,7 +2,7 @@ extern crate core;
 
 use std::fmt::Arguments;
 use std::io::Write;
-use uwasm::{parse, Environment, ParserError, execute_function, VmContext, ImportedFunc, ByteStr, init_globals};
+use uwasm::{parse, Environment, ParserError, execute_function, VmContext, ImportedFunc, ByteStr, init_globals, init_memory};
 
 struct MyEnv;
 
@@ -32,12 +32,14 @@ fn main() -> Result<(), ParserError> {
     let mut imports: Vec<ImportedFunc<MyEnv>> = Vec::new();
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
+            b"halt" => |_, stack, memory| {
+                println!(">>> !!!APPLICATION HALTED!!!");
+            },
             b"print" => |_, stack, memory| {
                 let size = stack.pop_i32().unwrap() as usize;
                 let ptr = stack.pop_i32().unwrap() as usize;
                 let s = ByteStr::from_bytes(&memory[ptr..][..size]);
                 println!(">>> PRINT FROM VM: {:?}", s);
-                stack.push_i32(0);
             },
             b"sleep_ms" => |_, stack, _memory| {
                 let sleep = stack.pop_u32().unwrap();

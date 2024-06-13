@@ -58,6 +58,12 @@ fn main() -> ! {
 
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
+            b"print" => |env, stack, memory| {
+                let size = stack.pop_i32().unwrap() as usize;
+                let ptr = stack.pop_i32().unwrap() as usize;
+                let s = ByteStr::from_bytes(&memory[ptr..][..size]);
+                println!(">>> PRINT FROM VM: {:?}", s);
+            },
             b"sleep_ms" => |env, stack, _memory| {
                 let sleep = stack.pop_u32().unwrap();
                 env.delay.delay_millis(sleep);

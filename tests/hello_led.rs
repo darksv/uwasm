@@ -1,11 +1,15 @@
+#![feature(panic_info_message)]
 #![no_std]
 #![no_main]
 
 use core::time::Duration;
 
 #[panic_handler]
-unsafe fn panic(_: &core::panic::PanicInfo) -> ! {
-    loop {}
+unsafe fn panic(info: &core::panic::PanicInfo) -> ! {
+    if let Some(msg) = info.message().and_then(|s| s.as_str()) {
+        api::print(msg);
+    }
+    api::halt();
 }
 
 mod api {
@@ -29,9 +33,17 @@ mod api {
     }
 
     mod raw {
+        #[repr(C)]
+        pub(super) struct Str {
+            pub(super) data: *const u8,
+            pub(super) len: usize,
+        }
+
         extern "C" {
-            pub(crate) fn set_output(pin: u8, high: bool);
-            pub(crate) fn sleep_ms(ms: u32);
+            pub(super) fn set_output(pin: u8, high: bool);
+            pub(super) fn sleep_ms(ms: u32);
+            pub(super) fn print(s: Str);
+            pub(super) fn halt() -> !;
         }
     }
 
@@ -41,6 +53,21 @@ mod api {
 
     pub fn sleep(duration: Duration) {
         unsafe { raw::sleep_ms(duration.as_millis().try_into().unwrap()) }
+    }
+
+    pub fn print(s: &str) {
+        unsafe {
+            raw::print(raw::Str {
+                len: s.len(),
+                data: s.as_ptr(),
+            })
+        }
+    }
+
+    pub fn halt() -> ! {
+        unsafe {
+            raw::halt()
+        }
     }
 }
 
