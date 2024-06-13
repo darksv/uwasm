@@ -772,6 +772,35 @@ pub fn evaluate<'code, TEnv: Environment>(
                     writeln!(env, "not taken");
                 }
             }
+            0x0e => {
+                // br_table
+                let val = ctx.stack.pop_i32()?;
+
+                let n = reader.read_usize()?;
+                let mut selected_depth = None;
+                for idx in 0..n {
+                    let depth = reader.read_usize()?;
+                    if idx as i32 == val {
+                        selected_depth = Some(depth);
+                    }
+                }
+                let default_depth = reader.read_usize()?;
+                let depth = selected_depth.unwrap_or(default_depth);
+
+                // TODO: dedup with br?
+                let block_idx = frame.blocks.len() - 1 - depth;
+                let block = &frame.blocks[block_idx];
+                let target = match block.kind {
+                    BlockType::Block => current_func.jump_targets[&block.offset] - 1,
+                    BlockType::Loop => block.body_offset,
+                };
+                reader.skip_to(target);
+                // skip blocks that we are no longer executing due to the jump
+                // TODO: check if this is correct
+                frame.blocks.drain(block_idx + 1..);
+                #[cfg(debug_assertions)]
+                writeln!(env, "taken");
+            }
             0x0f => {
                 // return
                 reader.skip_to_end();
