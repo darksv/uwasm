@@ -16,7 +16,7 @@ use esp_hal::{
 use esp_hal::gpio::{AnyOutput};
 use esp_hal::system::SystemControl;
 use esp_hal::timer::systimer::SystemTimer;
-use uwasm::{Environment, parse, VmContext, execute_function, ImportedFunc, init_globals};
+use uwasm::{Environment, parse, VmContext, execute_function, ImportedFunc, init_globals, ByteStr, init_memory};
 
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
@@ -85,6 +85,7 @@ fn main() -> ! {
 
     let mut vm_ctx = VmContext::new();
     let mut mem = [0u8; 1024];
+    init_memory(&mut mem, &module);
     loop {
         let start = SystemTimer::now();
         for _ in 0..10 {

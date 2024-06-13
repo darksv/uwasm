@@ -568,6 +568,13 @@ pub fn init_globals(globals: &mut Vec<u8>, module: &WasmModule) {
     }
 }
 
+pub fn init_memory(memory: &mut [u8], module: &WasmModule) {
+    for segment in &module.data_segments {
+        // TODO: calculate offset
+        memory[256..][..segment.data.len()].copy_from_slice(&segment.data);
+    }
+}
+
 pub fn execute_function<'code, TEnv: Environment, TArgs: FunctionArgs, TResult: Operand>(
     ctx: &mut VmContext<'code>,
     module: &'code WasmModule<'code>,
