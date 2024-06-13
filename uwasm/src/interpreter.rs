@@ -1084,6 +1084,10 @@ pub fn evaluate<'code, TEnv: Environment>(
                 // i64.gt_u
                 ctx.stack.inplace_bin_op(|a: u64, b: u64| a > b)?;
             }
+            0x5a => {
+                // i64.ge_u
+                ctx.stack.inplace_bin_op(|a: u64, b: u64| a >= b)?;
+            }
             0x63 => {
                 // f64.lt
                 ctx.stack.inplace_bin_op(|a: f64, b: f64| (a < b) as i32 as f64)?;
