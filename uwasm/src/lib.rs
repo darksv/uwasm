@@ -52,6 +52,7 @@ pub trait Environment {
 pub struct WasmModule<'code> {
     functions: Vec<Func<'code>>,
     globals: Vec<Global<'code>>,
+    data_segments: Vec<DataSegment<'code>>,
     globals_offsets: Vec<usize>,
 }
 
@@ -148,6 +149,20 @@ fn offsets_of_types(types: impl ExactSizeIterator<Item=TypeKind>) -> Vec<usize> 
     offsets
 }
 
+struct DataSegment<'code> {
+    flags: u8,
+    offset: CodeInfo<'code>,
+    data: &'code [u8],
+}
+
+impl fmt::Debug for DataSegment<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DataSegment")
+            .field("flags", &self.flags)
+            .finish()
+    }
+}
+
 pub fn parse<'code>(
     code: &'code [u8],
     env: &mut impl Environment,
@@ -159,6 +174,7 @@ pub fn parse<'code>(
     let mut signatures = Vec::new();
     let mut imports = 0;
     let mut globals = Vec::new();
+    let mut data_segments = Vec::new();
 
     writeln!(env, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -365,11 +381,28 @@ pub fn parse<'code>(
                     });
                 }
             }
+            SectionKind::Data => {
+                writeln!(env, "Found data section");
+
+                let num_segments = reader.read_usize()?;
+                for _ in 0..num_segments {
+                    let segment_flags = reader.read_u8()?;
+                    let code = parse_code(&mut reader, env)?;
+                    let data_len = reader.read_usize()?;
+                    let data = reader.read_slice(data_len)?;
+
+                    data_segments.push(DataSegment {
+                        flags: segment_flags,
+                        offset: code,
+                        data
+                    });
+                }
+            }
         }
     }
 
     let globals_offsets = offsets_of_types(globals.iter().map(|it| it.kind));
-    Ok(WasmModule { functions, globals, globals_offsets })
+    Ok(WasmModule { functions, globals, globals_offsets, data_segments })
 }
 
 struct CodeInfo<'code> {

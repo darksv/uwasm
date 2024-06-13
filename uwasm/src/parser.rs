@@ -200,6 +200,7 @@ pub(crate) enum SectionKind {
     Export = 0x07,
     Elem = 0x09,
     Code = 0x0A,
+    Data = 0x0B,
 }
 
 impl Item for SectionKind {
@@ -216,6 +217,7 @@ impl Item for SectionKind {
             0x07 => Ok(SectionKind::Export),
             0x09 => Ok(SectionKind::Elem),
             0x0A => Ok(SectionKind::Code),
+            0x0B => Ok(SectionKind::Data),
             other => Err(ParserError::InvalidValue { offset, found: other }),
         }
     }
