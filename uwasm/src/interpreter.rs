@@ -737,34 +737,17 @@ pub fn evaluate<'code, TEnv: Environment>(
             0x0c => {
                 // br
                 let depth = reader.read_usize()?;
-                let block_idx = frame.blocks.len() - 1 - depth;
-                let block = &frame.blocks[block_idx];
-                let target = match block.kind {
-                    BlockType::Block => current_func.jump_targets[&block.offset] - 1,
-                    BlockType::Loop => block.body_offset,
-                };
-                reader.skip_to(target);
-                // skip blocks that we are no longer executing due to the jump
-                // TODO: check if this is correct
-                frame.blocks.drain(block_idx + 1..);
+                let target = do_branch(frame, current_func, depth);
+                frame.reader.skip_to(target);
                 #[cfg(debug_assertions)]
                 writeln!(env, "taken");
             }
             0x0d => {
                 // br_if
-                // TODO: dedup with br?
                 let depth = reader.read_usize()?;
-                let block_idx = frame.blocks.len() - 1 - depth;
-                let block = &frame.blocks[block_idx];
                 if ctx.stack.pop_i32()? != 0 {
-                    let target = match block.kind {
-                        BlockType::Block => current_func.jump_targets[&block.offset] - 1,
-                        BlockType::Loop => block.body_offset
-                    };
-                    reader.skip_to(target);
-                    // skip blocks that we are no longer executing due to the jump
-                    // TODO: check if this is correct
-                    frame.blocks.drain(block_idx + 1..);
+                    let target = do_branch(frame, current_func, depth);
+                    frame.reader.skip_to(target);
                     #[cfg(debug_assertions)]
                     writeln!(env, "taken");
                 } else {
@@ -786,18 +769,8 @@ pub fn evaluate<'code, TEnv: Environment>(
                 }
                 let default_depth = reader.read_usize()?;
                 let depth = selected_depth.unwrap_or(default_depth);
-
-                // TODO: dedup with br?
-                let block_idx = frame.blocks.len() - 1 - depth;
-                let block = &frame.blocks[block_idx];
-                let target = match block.kind {
-                    BlockType::Block => current_func.jump_targets[&block.offset] - 1,
-                    BlockType::Loop => block.body_offset,
-                };
-                reader.skip_to(target);
-                // skip blocks that we are no longer executing due to the jump
-                // TODO: check if this is correct
-                frame.blocks.drain(block_idx + 1..);
+                let target = do_branch(frame, current_func, depth);
+                frame.reader.skip_to(target);
                 #[cfg(debug_assertions)]
                 writeln!(env, "taken");
             }
@@ -1232,4 +1205,17 @@ pub fn evaluate<'code, TEnv: Environment>(
     }
 
     Ok(())
+}
+
+fn do_branch(frame: &mut StackFrame, current_func: &FuncBody, depth: usize) -> usize {
+    let block_idx = frame.blocks.len() - 1 - depth;
+    let block = &frame.blocks[block_idx];
+    let target = match block.kind {
+        BlockType::Block => current_func.jump_targets[&block.offset] - 1,
+        BlockType::Loop => block.body_offset
+    };
+    // skip blocks that we are no longer executing due to the jump
+    // TODO: check if this is correct
+    frame.blocks.drain(block_idx + 1..);
+    target
 }
