@@ -120,7 +120,7 @@ impl VmStack {
         #[cfg(debug_assertions)]
         self.types.push(ty);
         #[cfg(not(debug_assertions))]
-            let _ = ty;
+        let _ = ty;
     }
 
     #[inline]
@@ -652,7 +652,7 @@ pub fn evaluate<'code, TEnv: Environment>(
         let pos = current_func.offset + reader.pos();
 
         #[cfg(debug_assertions)]
-            let opcode_reader = reader.clone();
+        let opcode_reader = reader.clone();
         let op = match reader.read_u8() {
             Ok(op) => op,
             Err(ParserError::EndOfStream { .. }) => {
@@ -984,7 +984,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                         writeln!(env, "i64.store8: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
                         mem.write_i8(offset, val);
-                    },
+                    }
                     0x3d => {
                         // i64.store16
                         let val = ctx.stack.pop_i64()? as i16;
@@ -993,7 +993,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                         writeln!(env, "i64.store8: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
                         mem.write_i16(offset, val);
-                    },
+                    }
                     0x3e => {
                         // i64.store32
                         let val = ctx.stack.pop_i64()? as i32;
@@ -1002,7 +1002,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                         writeln!(env, "i64.store8: mem[{fixed_offset}{idx:+}] <- {val}");
                         let offset = fixed_offset.checked_add_signed(idx).unwrap();
                         mem.write_i32(offset, val);
-                    },
+                    }
                     _ => unreachable!(),
                 }
             }
