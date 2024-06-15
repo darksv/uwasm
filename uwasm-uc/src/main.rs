@@ -53,11 +53,14 @@ fn main() -> ! {
         delay: Delay::new(&clocks),
     };
 
-    let module = parse(include_bytes!("../../hello_led.wasm"), &mut env).expect("parse module");
+    let module = parse(include_bytes!("../../target/wasm32-unknown-unknown/release/app-example.wasm"), &mut env).expect("parse module");
     let mut imports: Vec<ImportedFunc<MyEnv>> = Vec::new();
 
     for name in module.get_imports() {
         imports.push(match name.as_bytes() {
+            b"halt" => |_, stack, memory| {
+                println!(">>> !!!APPLICATION HALTED!!!");
+            },
             b"print" => |env, stack, memory| {
                 let size = stack.pop_i32().unwrap() as usize;
                 let ptr = stack.pop_i32().unwrap() as usize;

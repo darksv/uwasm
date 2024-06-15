@@ -5,6 +5,11 @@ rustflags = [
     "-C", "link-arg=-Tlinkall.x",
 ]
 
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-C", "link-args=-z stack-size=512"
+]
+
 #[unstable]
 #build-std = ["core", "alloc"]
 # cargo run --bin uwasm-uc -r -Z build-std=core,alloc --target riscv32imc-unknown-none-elf
