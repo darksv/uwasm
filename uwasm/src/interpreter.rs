@@ -529,50 +529,92 @@ impl From<ParserError> for InterpreterError {
 
 pub type ImportedFunc<TEnv> = fn(&mut TEnv, &mut VmStack, &mut [u8]);
 
-pub fn init_globals(globals: &mut Vec<u8>, module: &WasmModule) {
+pub fn init_globals(globals: &mut Vec<u8>, module: &WasmModule) -> Result<(), InterpreterError> {
     for global in &module.globals {
-        // TODO: run full interpreter here
-        let mut reader = Reader::new(global.initializer.code);
-        loop {
-            let op = reader.read_u8().unwrap();
-            match op {
-                0x0b => {
-                    // end
-                    break;
-                }
-                0x41 => {
-                    // i32.const <literal>
-                    let val = reader.read_isize().unwrap();
-                    let val = i32::try_from(val).unwrap();
-                    globals.extend_from_slice(&val.to_ne_bytes());
-                }
-                0x42 => {
-                    // i64.const <literal>
-                    let val = reader.read_usize().unwrap();
-                    let val = i64::try_from(val).unwrap();
-                    globals.extend_from_slice(&val.to_ne_bytes());
-                }
-                0x43 => {
-                    // f32.const <literal>
-                    let val = reader.read_f32().unwrap();
-                    globals.extend_from_slice(&val.to_ne_bytes());
-                }
-                0x44 => {
-                    // f64.const <literal>
-                    let val = reader.read_f64().unwrap();
-                    globals.extend_from_slice(&val.to_ne_bytes());
-                }
-                _ => todo!("opcode {:02x?}", op),
+        match execute_initializer(global.initializer.code)?.expect("initializer returned nothing useful") {
+            ExprValue::I32(value) => {
+                globals.extend_from_slice(&value.to_ne_bytes());
+            }
+            ExprValue::I64(value) => {
+                globals.extend_from_slice(&value.to_ne_bytes());
+            }
+            ExprValue::F32(value) => {
+                globals.extend_from_slice(&value.to_ne_bytes());
+            }
+            ExprValue::F64(value) => {
+                globals.extend_from_slice(&value.to_ne_bytes());
             }
         }
     }
+
+    Ok(())
 }
 
-pub fn init_memory(memory: &mut [u8], module: &WasmModule) {
+pub fn init_memory(memory: &mut [u8], module: &WasmModule) -> Result<(), InterpreterError> {
     for segment in &module.data_segments {
-        // TODO: calculate offset
-        memory[256..][..segment.data.len()].copy_from_slice(&segment.data);
+        let offset = match execute_initializer(segment.offset.code)?.expect("initializer returned nothing useful") {
+            ExprValue::I32(value) => value.try_into().unwrap(),
+            other => todo!("{:?}", other),
+        };
+        memory[offset..][..segment.data.len()].copy_from_slice(&segment.data);
     }
+
+    Ok(())
+}
+
+#[derive(Debug)]
+enum ExprValue {
+    I32(i32),
+    I64(i64),
+    F32(f32),
+    F64(f64),
+}
+
+fn execute_initializer(code: &[u8]) -> Result<Option<ExprValue>, InterpreterError> {
+    let mut reader = Reader::new(code);
+    let mut value = None;
+
+    loop {
+        let op = match reader.read_u8() {
+            Ok(op) => op,
+            Err(ParserError::EndOfStream { .. }) => {
+                break;
+            },
+            Err(e) => return Err(InterpreterError::ParserError(e)),
+        };
+
+        match op {
+            0x0b => {
+                // end
+                break;
+            }
+            0x41 => {
+                // i32.const <literal>
+                let val = reader.read_isize()?;
+                let val = i32::try_from(val).unwrap();
+                value = Some(ExprValue::I32(val));
+            }
+            0x42 => {
+                // i64.const <literal>
+                let val = reader.read_isize()?;
+                let val = i64::try_from(val).unwrap();
+                value = Some(ExprValue::I64(val));
+            }
+            0x43 => {
+                // f32.const <literal>
+                let val = reader.read_f32()?;
+                value = Some(ExprValue::F32(val));
+            }
+            0x44 => {
+                // f64.const <literal>
+                let val = reader.read_f64()?;
+                value = Some(ExprValue::F64(val));
+            }
+            _ => todo!("opcode {:02x?}", op),
+        }
+    }
+
+    Ok(value)
 }
 
 pub fn execute_function<'code, TEnv: Environment, TArgs: FunctionArgs, TResult: Operand>(
