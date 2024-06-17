@@ -54,6 +54,7 @@ pub struct WasmModule<'code> {
     globals: Vec<Global<'code>>,
     data_segments: Vec<DataSegment<'code>>,
     globals_offsets: Vec<usize>,
+    tables: Vec<Table>,
 }
 
 impl<'code> WasmModule<'code> {
@@ -163,6 +164,14 @@ impl fmt::Debug for DataSegment<'_> {
     }
 }
 
+#[derive(Debug)]
+struct Table {
+    kind: TypeKind,
+    limits_flags: u8,
+    limits_initial: u8,
+    limits_max: u8
+}
+
 pub fn parse<'code>(
     code: &'code [u8],
     env: &mut impl Environment,
@@ -175,6 +184,7 @@ pub fn parse<'code>(
     let mut imports = 0;
     let mut globals = Vec::new();
     let mut data_segments = Vec::new();
+    let mut tables = Vec::new();
 
     writeln!(env, "Version: {:?}", reader.read_u32()?);
     while let Ok(section_type) = reader.read::<SectionKind>() {
@@ -259,10 +269,17 @@ pub fn parse<'code>(
 
                 let num_tables = reader.read_usize()?;
                 for _ in 0..num_tables {
-                    let _kind = reader.read::<TypeKind>()?;
-                    let _limits_flags = reader.read_u8()?;
-                    let _limits_initial = reader.read_u8()?;
-                    let _limits_max = reader.read_u8()?;
+                    let kind = reader.read::<TypeKind>()?;
+                    let limits_flags = reader.read_u8()?;
+                    let limits_initial = reader.read_u8()?;
+                    let limits_max = reader.read_u8()?;
+
+                    tables.push(Table {
+                        kind,
+                        limits_flags,
+                        limits_initial,
+                        limits_max,
+                    });
                 }
             }
             SectionKind::Memory => {
@@ -402,7 +419,7 @@ pub fn parse<'code>(
     }
 
     let globals_offsets = offsets_of_types(globals.iter().map(|it| it.kind));
-    Ok(WasmModule { functions, globals, globals_offsets, data_segments })
+    Ok(WasmModule { functions, globals, globals_offsets, data_segments, tables })
 }
 
 struct CodeInfo<'code> {
