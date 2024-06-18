@@ -843,6 +843,39 @@ pub fn evaluate<'code, TEnv: Environment>(
                     imports[func_idx](env, &mut ctx.stack, memory);
                 }
             }
+            0x11 => {
+                // call_indirect <func_idx>
+                let sig_idx = reader.read_usize()?;
+                let table_idx = reader.read_usize()?;
+
+                let func_idx = ctx.stack.pop_i32()? as usize;
+
+                #[cfg(debug_assertions)]
+                writeln!(env, "calling {} / {} {}", func_idx, sig_idx, table_idx);
+
+                // FIXME
+
+                if let Some(callee) = module.get_function_by_index(func_idx) {
+                    ctx.call_stack.push(StackFrame {
+                        func_idx,
+                        reader: Reader::new(callee.code),
+                        locals_offset: ctx.locals.len(),
+                        curr_loop_start: None,
+                        blocks: Vec::new(),
+                    });
+                    let params_mem = &ctx.stack.data[ctx.stack.data.len() - callee.params_len_in_bytes..];
+                    copy_params_and_locals(&mut ctx.locals, params_mem, callee);
+                    ctx.stack.pop_many(callee.params_len_in_bytes);
+                } else {
+                    #[cfg(debug_assertions)]
+                    writeln!(env, "calling imported function {}", func_idx);
+                    imports[func_idx](env, &mut ctx.stack, memory);
+                }
+            }
+            0x1a => {
+                // drop
+                ctx.stack.pop_i32()?;
+            }
             0x1b => {
                 // select
                 let cond = ctx.stack.pop_i32()?;
