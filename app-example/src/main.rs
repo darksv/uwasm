@@ -2,12 +2,18 @@
 #![no_std]
 #![no_main]
 
+use core::fmt::Write;
 use core::time::Duration;
+use heapless::String;
 
 #[panic_handler]
 unsafe fn panic(info: &core::panic::PanicInfo) -> ! {
-    if let Some(msg) = info.message().and_then(|s| s.as_str()) {
-        api::print(msg);
+    let mut buf: String<10> = String::new();
+    if let Some(msg) = info.message() {
+        _ = writeln!(&mut buf, "panic: {}", msg);
+        api::print(buf.as_str());
+    } else {
+        api::print("<no info>");
     }
     api::halt();
 }

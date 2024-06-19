@@ -63,7 +63,7 @@ fn main() -> Result<(), ParserError> {
     init_memory(&mut mem, &module).unwrap();
     for _n in 0u32..runs {
         println!(">>> Executing entry function");
-        let res = execute_function::<MyEnv, (u32, ), u32>(&mut ctx, &module, b"entry".into(), (987654321, ), &mut mem, &mut globals, &imports, &mut MyEnv);
+        let res = execute_function::<MyEnv, (u32, ), u32>(&mut ctx, &module, b"entry".into(), (1, ), &mut mem, &mut globals, &imports, &mut MyEnv);
         println!(">>> Result: {:?}", res);
     }
     println!("time = {:?}/execution", started.elapsed() / runs);
