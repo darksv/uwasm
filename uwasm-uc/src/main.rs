@@ -90,11 +90,11 @@ fn main() -> ! {
     }
 
     let mut globals = Vec::new();
-    init_globals(&mut globals, &module);
+    init_globals(&mut globals, &module).unwrap();
 
     let mut vm_ctx = VmContext::new();
     let mut mem = [0u8; 1024];
-    init_memory(&mut mem, &module);
+    init_memory(&mut mem, &module).unwrap();
     loop {
         let start = SystemTimer::now();
         for _ in 0..10 {
