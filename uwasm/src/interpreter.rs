@@ -826,22 +826,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                 #[cfg(debug_assertions)]
                 writeln!(env, "calling {}", func_idx);
 
-                if let Some(callee) = module.get_function_by_index(func_idx) {
-                    ctx.call_stack.push(StackFrame {
-                        func_idx,
-                        reader: Reader::new(callee.code),
-                        locals_offset: ctx.locals.len(),
-                        curr_loop_start: None,
-                        blocks: Vec::new(),
-                    });
-                    let params_mem = &ctx.stack.data[ctx.stack.data.len() - callee.params_len_in_bytes..];
-                    copy_params_and_locals(&mut ctx.locals, params_mem, callee);
-                    ctx.stack.pop_many(callee.params_len_in_bytes);
-                } else {
-                    #[cfg(debug_assertions)]
-                    writeln!(env, "calling imported function {}", func_idx);
-                    imports[func_idx](env, &mut ctx.stack, memory);
-                }
+                do_call(ctx, module, func_idx, memory, imports, env);
             }
             0x11 => {
                 // call_indirect <func_idx>
@@ -853,24 +838,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                 #[cfg(debug_assertions)]
                 writeln!(env, "calling {} / {} {}", func_idx, sig_idx, table_idx);
 
-                // FIXME
-
-                if let Some(callee) = module.get_function_by_index(func_idx) {
-                    ctx.call_stack.push(StackFrame {
-                        func_idx,
-                        reader: Reader::new(callee.code),
-                        locals_offset: ctx.locals.len(),
-                        curr_loop_start: None,
-                        blocks: Vec::new(),
-                    });
-                    let params_mem = &ctx.stack.data[ctx.stack.data.len() - callee.params_len_in_bytes..];
-                    copy_params_and_locals(&mut ctx.locals, params_mem, callee);
-                    ctx.stack.pop_many(callee.params_len_in_bytes);
-                } else {
-                    #[cfg(debug_assertions)]
-                    writeln!(env, "calling imported function {}", func_idx);
-                    imports[func_idx](env, &mut ctx.stack, memory);
-                }
+                do_call(ctx, module, func_idx, memory, imports, env);
             }
             0x1a => {
                 // drop
@@ -1280,6 +1248,32 @@ pub fn evaluate<'code, TEnv: Environment>(
     }
 
     Ok(())
+}
+
+fn do_call<'code, TEnv: Environment>(
+    ctx: &mut VmContext<'code>,
+    module: &'code WasmModule,
+    func_idx: usize,
+    memory: &mut [u8],
+    imports: &[ImportedFunc<TEnv>],
+    env: &mut TEnv
+) {
+    if let Some(callee) = module.get_function_by_index(func_idx) {
+        ctx.call_stack.push(StackFrame {
+            func_idx,
+            reader: Reader::new(callee.code),
+            locals_offset: ctx.locals.len(),
+            curr_loop_start: None,
+            blocks: Vec::new(),
+        });
+        let params_mem = &ctx.stack.data[ctx.stack.data.len() - callee.params_len_in_bytes..];
+        copy_params_and_locals(&mut ctx.locals, params_mem, callee);
+        ctx.stack.pop_many(callee.params_len_in_bytes);
+    } else {
+        #[cfg(debug_assertions)]
+        writeln!(env, "calling imported function {}", func_idx);
+        imports[func_idx](env, &mut ctx.stack, memory);
+    }
 }
 
 fn do_branch(frame: &mut StackFrame, current_func: &FuncBody, depth: usize) -> usize {
