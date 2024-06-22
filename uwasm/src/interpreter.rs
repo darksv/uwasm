@@ -823,21 +823,14 @@ pub fn evaluate<'code, TEnv: Environment>(
             0x10 => {
                 // call <func_idx>
                 let func_idx = reader.read_usize()?;
-                #[cfg(debug_assertions)]
-                writeln!(env, "calling {}", func_idx);
-
                 do_call(ctx, module, func_idx, memory, imports, env);
             }
             0x11 => {
                 // call_indirect <func_idx>
-                let sig_idx = reader.read_usize()?;
-                let table_idx = reader.read_usize()?;
+                let _sig_idx = reader.read_usize()?;
+                let _table_idx = reader.read_usize()?;
 
                 let func_idx = ctx.stack.pop_i32()? as usize;
-
-                #[cfg(debug_assertions)]
-                writeln!(env, "calling {} / {} {}", func_idx, sig_idx, table_idx);
-
                 do_call(ctx, module, func_idx, memory, imports, env);
             }
             0x1a => {
@@ -1259,6 +1252,8 @@ fn do_call<'code, TEnv: Environment>(
     env: &mut TEnv
 ) {
     if let Some(callee) = module.get_function_by_index(func_idx) {
+        #[cfg(debug_assertions)]
+        writeln!(env, "calling function {}", func_idx);
         ctx.call_stack.push(StackFrame {
             func_idx,
             reader: Reader::new(callee.code),

@@ -39,7 +39,7 @@ fn main() -> Result<(), ParserError> {
                 let size = stack.pop_i32().unwrap() as usize;
                 let ptr = stack.pop_i32().unwrap() as usize;
                 let s = ByteStr::from_bytes(&memory[ptr..][..size]);
-                println!(">>> PRINT FROM VM: {:?}", s);
+                println!(">>> PRINT FROM VM {size} {ptr}: {:?}", s);
             },
             b"sleep_ms" => |_, stack, _memory| {
                 let sleep = stack.pop_u32().unwrap();
@@ -59,7 +59,7 @@ fn main() -> Result<(), ParserError> {
 
     let started = std::time::Instant::now();
     let mut ctx = VmContext::new();
-    let mut mem = [0u8; 1024];
+    let mut mem = [0u8; 1024*8];
     init_memory(&mut mem, &module).unwrap();
     for _n in 0u32..runs {
         println!(">>> Executing entry function");

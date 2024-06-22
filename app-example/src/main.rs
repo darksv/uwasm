@@ -8,7 +8,7 @@ use heapless::String;
 
 #[panic_handler]
 unsafe fn panic(info: &core::panic::PanicInfo) -> ! {
-    let mut buf: String<10> = String::new();
+    let mut buf: String<100> = String::new();
     if let Some(msg) = info.message() {
         _ = writeln!(&mut buf, "panic: {}", msg);
         api::print(buf.as_str());
@@ -77,6 +77,13 @@ mod api {
     }
 }
 
+#[inline(never)]
+fn foo() {
+    let mut s: String<100> = String::new();
+    write!(&mut s, "{:?}", 123);
+    api::print(core::hint::black_box(s.as_str()));
+}
+
 #[no_mangle]
 #[export_name = "entry"]
 pub fn entry(n: u32) -> u32 {
@@ -92,6 +99,9 @@ pub fn entry(n: u32) -> u32 {
 
         state = state.toggle()
     }
+
+    api::print("ok");
+    foo();
 
     0
 }
