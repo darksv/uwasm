@@ -279,65 +279,74 @@ impl UntypedMemorySpan {
     }
 
     #[inline]
-    fn read_param_raw<const N: usize>(
-        &self,
-        offsets: &[usize],
-        idx: usize,
-    ) -> Option<&[u8; N]> {
-        let offset = offsets.get(idx).copied()?;
-        self.data.get(offset..)?.first_chunk()
+    fn variable_to_offset(offsets: &[usize], var_idx: usize) -> Result<usize, MemoryAccessError> {
+        offsets
+            .get(var_idx)
+            .copied()
+            .ok_or_else(|| MemoryAccessError::InvalidVariable { idx: var_idx })
+    }
+
+    #[inline]
+    fn read_param_raw<const N: usize>(&self, offset: usize) -> Result<&[u8; N], MemoryAccessError> {
+        self.data.get(offset..)
+            .ok_or_else(|| MemoryAccessError::InvalidOffset { offset })?
+            .first_chunk()
+            .ok_or_else(|| MemoryAccessError::InvalidLength { offset, length: 4 })
     }
 
     #[inline]
     fn write_param_raw<const N: usize>(
         &mut self,
-        offsets: &[usize],
-        idx: usize,
-        data: [u8; N],
-    ) -> Option<()> {
-        // FIXME
-        let offset = offsets.get(idx).copied()?;
-        self.data.get_mut(offset..)?
-            .first_chunk_mut::<N>()?
-            .copy_from_slice(&data);
-        Some(())
+        offset: usize,
+        data: &[u8; N],
+    ) -> Result<(), MemoryAccessError> {
+        self.data
+            .get_mut(offset..).ok_or_else(|| MemoryAccessError::InvalidOffset { offset })?
+            .first_chunk_mut::<N>().ok_or_else(|| MemoryAccessError::InvalidLength { offset, length: N })?
+            .copy_from_slice(data);
+        Ok(())
     }
 
     #[inline]
-    fn push_into(&self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) {
+    fn push_into(&self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) -> Result<(), InterpreterError> {
+        let offset = Self::variable_to_offset(offsets, var_idx)?;
+
         match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 => stack.push_bytes(TypeKind::F32, *self.read_param_raw::<4>(offsets, var_idx).unwrap()),
-            TypeKind::F64 => stack.push_bytes(TypeKind::F64, *self.read_param_raw::<8>(offsets, var_idx).unwrap()),
-            TypeKind::I32 => stack.push_bytes(TypeKind::I32, *self.read_param_raw::<4>(offsets, var_idx).unwrap()),
-            TypeKind::I64 => stack.push_bytes(TypeKind::I64, *self.read_param_raw::<8>(offsets, var_idx).unwrap()),
+            TypeKind::F32 => stack.push_bytes(TypeKind::F32, *self.read_param_raw::<4>(offset)?),
+            TypeKind::F64 => stack.push_bytes(TypeKind::F64, *self.read_param_raw::<8>(offset)?),
+            TypeKind::I32 => stack.push_bytes(TypeKind::I32, *self.read_param_raw::<4>(offset)?),
+            TypeKind::I64 => stack.push_bytes(TypeKind::I64, *self.read_param_raw::<8>(offset)?),
         }
+        Ok(())
     }
 
     #[inline]
     fn pop_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) -> Result<(), InterpreterError> {
+        let offset = Self::variable_to_offset(offsets, var_idx)?;
         match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_f32()?.to_ne_bytes()).expect("invalid var_index"),
-            TypeKind::F64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_f64()?.to_ne_bytes()).expect("invalid var_index"),
-            TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.pop_i32()?.to_ne_bytes()).expect("invalid var_index"),
-            TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.pop_i64()?.to_ne_bytes()).expect("invalid var_index"),
+            TypeKind::F32 => self.write_param_raw::<4>(offset, &stack.pop_f32()?.to_ne_bytes())?,
+            TypeKind::F64 => self.write_param_raw::<8>(offset, &stack.pop_f64()?.to_ne_bytes())?,
+            TypeKind::I32 => self.write_param_raw::<4>(offset, &stack.pop_i32()?.to_ne_bytes())?,
+            TypeKind::I64 => self.write_param_raw::<8>(offset, &stack.pop_i64()?.to_ne_bytes())?,
         }
         Ok(())
     }
 
     #[inline]
     fn copy_from(&mut self, stack: &mut VmStack, var_idx: usize, var_type: TypeKind, offsets: &[usize]) -> Result<(), InterpreterError> {
+        let offset = Self::variable_to_offset(offsets, var_idx)?;
         match var_type {
             TypeKind::Void => todo!(),
             TypeKind::Func => todo!(),
             TypeKind::FuncRef => todo!(),
-            TypeKind::F32 | TypeKind::I32 => self.write_param_raw::<4>(offsets, var_idx, stack.peek_bytes()?).unwrap(),
-            TypeKind::F64 | TypeKind::I64 => self.write_param_raw::<8>(offsets, var_idx, stack.peek_bytes()?).unwrap(),
+            TypeKind::F32 | TypeKind::I32 => self.write_param_raw::<4>(offset, &stack.peek_bytes()?)?,
+            TypeKind::F64 | TypeKind::I64 => self.write_param_raw::<8>(offset, &stack.peek_bytes()?)?,
         }
         Ok(())
     }
@@ -519,11 +528,25 @@ pub enum InterpreterError {
     StackEmpty,
     StackTooSmall,
     Unreachable,
+    MemoryAccessError(MemoryAccessError),
+}
+
+#[derive(Debug)]
+pub enum MemoryAccessError {
+    InvalidVariable { idx: usize },
+    InvalidOffset { offset: usize },
+    InvalidLength { offset: usize, length: usize },
 }
 
 impl From<ParserError> for InterpreterError {
     fn from(value: ParserError) -> Self {
         Self::ParserError(value)
+    }
+}
+
+impl From<MemoryAccessError> for InterpreterError {
+    fn from(value: MemoryAccessError) -> Self {
+        Self::MemoryAccessError(value)
     }
 }
 
@@ -850,12 +873,16 @@ pub fn evaluate<'code, TEnv: Environment>(
             }
             0x20 => {
                 // local.get <local>
-                let locals = UntypedMemorySpan::from_slice(
-                    &ctx.locals[frame.locals_offset..]
-                );
-
                 let local_idx = reader.read_usize()?;
-                locals.push_into(&mut ctx.stack, local_idx, current_func.locals_types[local_idx], &current_func.locals_offsets);
+
+                UntypedMemorySpan::from_slice(
+                    &ctx.locals[frame.locals_offset..]
+                ).push_into(
+                    &mut ctx.stack,
+                    local_idx,
+                    current_func.locals_types[local_idx],
+                    &current_func.locals_offsets,
+                )?;
             }
             0x21 => {
                 // local.set <local>
@@ -890,7 +917,7 @@ pub fn evaluate<'code, TEnv: Environment>(
                         global_idx,
                         module.globals[global_idx].kind,
                         &module.globals_offsets,
-                    );
+                    )?;
             }
             0x24 => {
                 // global.set <global>
