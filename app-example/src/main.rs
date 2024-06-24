@@ -8,9 +8,9 @@ use heapless::String;
 
 #[panic_handler]
 unsafe fn panic(info: &core::panic::PanicInfo) -> ! {
-    let mut buf: String<100> = String::new();
     if let Some(msg) = info.message() {
-        _ = writeln!(&mut buf, "panic: {}", msg);
+        let mut buf: String<128> = String::new();
+        _ = write!(&mut buf, "{}", msg);
         api::print(buf.as_str());
     } else {
         api::print("<no info>");
